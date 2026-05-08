@@ -2047,11 +2047,11 @@ async function selfCheck(text, apiKey) {
 }
 
 async function callKotoneAPI(prompt, model, apiKey, maxTokens) {
-  // 1.4と完全に同じヘッダー構成
-  // anthropic-dangerous-direct-browser-access: true を付与してCORSを通す
-  const headers = { "Content-Type": "application/json", "anthropic-dangerous-direct-browser-access": "true" };
+  // 1.4と完全に同じ: Content-Typeのみ（kotodamaai.github.ioドメインで認証済み）
+  const headers = { "Content-Type": "application/json" };
   if (apiKey) {
     headers["x-api-key"] = apiKey;
+    headers["anthropic-dangerous-direct-browser-access"] = "true";
   }
   const resp = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
