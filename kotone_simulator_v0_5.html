@@ -1,0 +1,2915 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KOTONE Simulator v0.5 - AI診断文生成</title>
+<style>
+  /* ========================================
+     KOTONE Simulator - 検証用シミュレーター
+     v0.4: L3表現層をHaiku/Sonnet AI生成に置き換え
+     L1機能辞書 v1.2 / 数秘 v1.0
+     L2プロセス生成ルール v1.0
+     プロンプト設計書 v0.1 準拠
+     出力設計指示書 v1.3 / 設計修正指示書 v1.2 準拠
+  ======================================== */
+
+  :root {
+    --bg: #f4f1ea;
+    --bg-panel: #fafaf6;
+    --bg-card: #ffffff;
+    --ink: #1a1a1a;
+    --ink-2: #4a4a4a;
+    --ink-3: #8a8a8a;
+    --line: #d8d2c5;
+    --accent: #b8593a;       /* 朱 */
+    --accent-2: #2c4a52;     /* 紺 */
+    --accent-3: #8a7c4f;     /* 黄土 */
+    --common: #4a7a4a;       /* 緑(強化) */
+    --conflict: #b8593a;     /* 朱(矛盾) */
+    --complex: #6a4a8a;      /* 紫(干渉) */
+    --tension: #c08a3a;      /* 山吹(張力) */
+    --aux: #6a6a6a;          /* 灰(補助) */
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Hiragino Mincho ProN", "YuMincho", "Yu Mincho", serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.7;
+    padding: 32px 16px 80px;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  /* ヘッダー */
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 16px;
+    margin-bottom: 32px;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: var(--ink-3);
+    margin-top: 4px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    letter-spacing: 0.02em;
+  }
+
+  /* 入力フォーム */
+  .input-panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    padding: 24px;
+    margin-bottom: 32px;
+  }
+
+  .input-row {
+    display: grid;
+    grid-template-columns: 1.2fr 1.2fr 1fr 0.8fr 0.8fr auto;
+    gap: 14px;
+    align-items: end;
+  }
+
+  @media (max-width: 720px) {
+    .input-row { grid-template-columns: 1fr 1fr; }
+  }
+
+  .field label {
+    display: block;
+    font-size: 11px;
+    color: var(--ink-3);
+    margin-bottom: 4px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .field input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    background: var(--bg-card);
+    font-size: 16px;
+    font-family: inherit;
+    color: var(--ink);
+  }
+
+  .field input:focus {
+    outline: none;
+    border-color: var(--accent-2);
+  }
+
+  button {
+    padding: 10px 24px;
+    background: var(--ink);
+    color: var(--bg);
+    border: none;
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+  }
+
+  button:hover { background: var(--accent-2); }
+
+  .preset-row {
+    margin-top: 16px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .preset-label {
+    font-size: 11px;
+    color: var(--ink-3);
+    letter-spacing: 0.1em;
+  }
+
+  .preset {
+    padding: 4px 10px;
+    background: transparent;
+    color: var(--ink-2);
+    border: 1px solid var(--line);
+    font-size: 12px;
+    cursor: pointer;
+    letter-spacing: 0;
+  }
+
+  .preset:hover { border-color: var(--ink); background: var(--bg-card); }
+
+  /* 出力エリア */
+  .output { display: none; }
+  .output.active { display: block; }
+
+  .layer {
+    margin-bottom: 32px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+  }
+
+  .layer-header {
+    background: var(--ink);
+    color: var(--bg);
+    padding: 8px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+  }
+
+  .layer-header .badge {
+    font-family: "SF Mono", monospace;
+    font-size: 10px;
+    opacity: 0.7;
+  }
+
+  .layer-body { padding: 20px 24px; }
+
+  .layer h2 {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .layer h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-2);
+    margin-top: 16px;
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+  }
+
+  /* 数秘の計算表示 */
+  .calc-box {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    background: var(--bg-panel);
+    padding: 12px 16px;
+    border-left: 3px solid var(--accent-2);
+    font-size: 13px;
+    margin-bottom: 12px;
+    white-space: pre-wrap;
+  }
+
+  .calc-box.reference {
+    border-left-color: var(--ink-3);
+    color: var(--ink-2);
+    font-style: italic;
+  }
+
+  /* 機能タグの表示 */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 8px 16px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+
+  .feature-grid .key {
+    color: var(--ink-3);
+    text-align: right;
+  }
+
+  .feature-grid .val {
+    color: var(--ink);
+  }
+
+  /* チップ */
+  .chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .chip {
+    display: inline-block;
+    padding: 2px 8px;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--ink);
+  }
+
+  .chip.direction { border-color: var(--accent-2); color: var(--accent-2); }
+  .chip.motion { border-color: var(--ink); color: var(--ink); }
+  .chip.modifier { border-color: var(--accent-3); color: var(--accent-3); }
+  .chip.tag { background: var(--accent-2); color: white; border-color: var(--accent-2); }
+  .chip.weight { background: var(--accent); color: white; border-color: var(--accent); }
+
+  /* プロセス矢印 */
+  .process-flow {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 14px;
+    background: var(--bg-panel);
+    padding: 12px 16px;
+    border-left: 3px solid var(--ink);
+    margin: 8px 0;
+  }
+
+  /* intersection カテゴリ */
+  .intersection-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 720px) {
+    .intersection-grid { grid-template-columns: 1fr; }
+  }
+
+  .intersection-card {
+    border: 1px solid var(--line);
+    padding: 12px 16px;
+    background: var(--bg-panel);
+  }
+
+  .intersection-card .label {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 6px;
+  }
+
+  .intersection-card.common { border-left: 4px solid var(--common); }
+  .intersection-card.conflict { border-left: 4px solid var(--conflict); }
+  .intersection-card.complex { border-left: 4px solid var(--complex); }
+  .intersection-card.tension { border-left: 4px solid var(--tension); }
+  .intersection-card.auxiliary { border-left: 4px solid var(--aux); }
+
+  .intersection-card.common .label { color: var(--common); }
+  .intersection-card.conflict .label { color: var(--conflict); }
+  .intersection-card.complex .label { color: var(--complex); }
+  .intersection-card.tension .label { color: var(--tension); }
+  .intersection-card.auxiliary .label { color: var(--aux); }
+
+  .intersection-card .item {
+    font-size: 13px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    margin: 4px 0;
+    color: var(--ink-2);
+  }
+
+  .intersection-card .empty {
+    font-size: 12px;
+    color: var(--ink-3);
+    font-style: italic;
+  }
+
+  /* 二系統比較レイアウト */
+  .duo {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  @media (max-width: 720px) {
+    .duo { grid-template-columns: 1fr; }
+  }
+
+  .duo .system {
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    background: var(--bg-panel);
+  }
+
+  .duo .system .system-label {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 4px;
+  }
+
+  /* JSON view */
+  details {
+    margin-top: 16px;
+    border: 1px solid var(--line);
+    padding: 8px 16px;
+    background: var(--bg-panel);
+  }
+
+  details summary {
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--ink-2);
+    letter-spacing: 0.05em;
+    padding: 4px 0;
+  }
+
+  details pre {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    color: var(--ink-2);
+    margin-top: 8px;
+    padding: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    overflow-x: auto;
+    line-height: 1.5;
+  }
+
+  /* メタ情報 */
+  .meta-info {
+    font-size: 11px;
+    color: var(--ink-3);
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    margin-top: 4px;
+  }
+
+  /* エラー */
+  .error {
+    background: #ffe6e0;
+    border: 1px solid var(--conflict);
+    color: var(--conflict);
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+
+  /* L3 表現層 */
+  .l3-final {
+    background: linear-gradient(180deg, #fefcf6 0%, #faf6ec 100%);
+    border: 1px solid var(--accent-3);
+    padding: 32px 40px;
+    margin-bottom: 32px;
+    font-family: "Hiragino Mincho ProN", "YuMincho", "Yu Mincho", serif;
+  }
+
+  .l3-final .l3-header {
+    text-align: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--accent-3);
+  }
+
+  .l3-final .l3-header .label {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--accent-3);
+    margin-bottom: 4px;
+  }
+
+  .l3-final .l3-header .title {
+    font-size: 22px;
+    color: var(--ink);
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  .l3-section {
+    margin-bottom: 28px;
+  }
+
+  .l3-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .l3-section .section-title {
+    display: inline-block;
+    font-size: 13px;
+    color: var(--accent-2);
+    border-bottom: 2px solid var(--accent-3);
+    padding-bottom: 2px;
+    margin-bottom: 12px;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  .l3-section p {
+    font-size: 15px;
+    line-height: 1.95;
+    color: var(--ink);
+    margin-bottom: 8px;
+    text-align: justify;
+  }
+
+  .l3-section p:last-child {
+    margin-bottom: 0;
+  }
+
+  .l3-catch {
+    text-align: center;
+    margin: 32px 0 0;
+    padding: 20px;
+    background: var(--bg-card);
+    border: 1px dashed var(--accent-3);
+  }
+
+  .l3-catch .catch-label {
+    font-size: 10px;
+    color: var(--ink-3);
+    letter-spacing: 0.15em;
+    margin-bottom: 8px;
+  }
+
+  .l3-catch .catch-text {
+    font-size: 18px;
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    line-height: 1.6;
+  }
+
+  .l3-catch .catch-note {
+    font-size: 10px;
+    color: var(--ink-3);
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  /* APIキー入力 */
+  .api-row {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .api-row label {
+    font-size: 11px;
+    color: var(--ink-3);
+    font-family: "SF Mono", monospace;
+    white-space: nowrap;
+  }
+
+  .api-row input[type="password"] {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-family: "SF Mono", monospace;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--ink);
+  }
+
+  .api-row .api-note {
+    font-size: 10px;
+    color: var(--ink-3);
+    font-style: italic;
+  }
+
+  /* AI生成セクション */
+  .l3-ai-section {
+    margin-bottom: 28px;
+  }
+
+  .l3-ai-section .section-title {
+    display: inline-block;
+    font-size: 13px;
+    color: var(--accent-2);
+    border-bottom: 2px solid var(--accent-3);
+    padding-bottom: 2px;
+    margin-bottom: 12px;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  .l3-ai-section .model-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-family: "SF Mono", monospace;
+    background: var(--accent-2);
+    color: #fff;
+    padding: 1px 5px;
+    margin-left: 6px;
+    letter-spacing: 0.05em;
+    vertical-align: middle;
+  }
+
+  .l3-ai-section p {
+    font-size: 15px;
+    line-height: 2.0;
+    color: var(--ink);
+    margin-bottom: 8px;
+    text-align: justify;
+    white-space: pre-wrap;
+  }
+
+  .l3-loading {
+    font-size: 13px;
+    color: var(--ink-3);
+    font-style: italic;
+    padding: 8px 0;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1.0; }
+  }
+
+  .l3-check-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-family: "SF Mono", monospace;
+    padding: 1px 5px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  .l3-check-badge.ok { background: #4a7a4a; color: #fff; }
+  .l3-check-badge.ng { background: var(--accent); color: #fff; }
+  .l3-check-badge.retry { background: var(--accent-3); color: #fff; }
+
+  /* フッター */
+  footer {
+    margin-top: 64px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    font-size: 11px;
+    color: var(--ink-3);
+    font-family: "SF Mono", monospace;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  .note {
+    font-size: 11px;
+    color: var(--ink-3);
+    margin-top: 6px;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>KOTONE Simulator</h1>
+    <div class="subtitle">v0.5 / L3表現層 Haiku/Sonnet AI生成 · プロンプト設計書 v0.1 準拠</div>
+  </header>
+
+  <div class="input-panel">
+    <div class="input-row">
+      <div class="field">
+        <label>苗字(ひらがな)</label>
+        <input type="text" id="lastName" placeholder="例:しょうだ">
+      </div>
+      <div class="field">
+        <label>名前(ひらがな)</label>
+        <input type="text" id="firstName" placeholder="例:みつし">
+      </div>
+      <div class="field">
+        <label>年</label>
+        <input type="number" id="year" placeholder="1996">
+      </div>
+      <div class="field">
+        <label>月</label>
+        <input type="number" id="month" placeholder="10" min="1" max="12">
+      </div>
+      <div class="field">
+        <label>日</label>
+        <input type="number" id="day" placeholder="19" min="1" max="31">
+      </div>
+      <div class="field">
+        <button id="run">実行</button>
+      </div>
+    </div>
+    <div class="preset-row">
+      <span class="preset-label">PRESET</span>
+      <button class="preset" data-ln="しょうだ" data-fn="みつし" data-y="1980" data-m="3" data-d="15">しょうだ みつし</button>
+      <button class="preset" data-ln="いのうえ" data-fn="しげき" data-y="1975" data-m="7" data-d="22">いのうえ しげき</button>
+      <button class="preset" data-ln="おおの" data-fn="えりこ" data-y="1996" data-m="10" data-d="19">おおの えりこ</button>
+      <button class="preset" data-ln="おおの" data-fn="あきお" data-y="1967" data-m="11" data-d="19">おおの あきお</button>
+      <button class="preset" data-ln="" data-fn="" data-y="1996" data-m="11" data-d="19">11月19日(誕生日のみ)</button>
+      <button class="preset" data-ln="" data-fn="" data-y="1990" data-m="3" data-d="7">3月7日</button>
+      <div class="api-row">
+        <label>Anthropic API Key</label>
+        <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off">
+        <span class="api-note">通常は空欄でOK / ローカル動作時のみ入力</span>
+      </div>
+    </div>
+
+  <div id="error-box"></div>
+  <div id="output" class="output"></div>
+
+  <footer>
+    KOTONE Simulator v0.5 · Haiku/Sonnet AI生成 · プロンプト設計書 v0.1 · レイ設計指示書 v1.2/v1.3 準拠
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   1. L1機能辞書(言霊・抜粋実装版)
+   ※v1.2正本のうち、検証に必要なコア音のみ実装
+   ============================================================ */
+
+// 音 → {direction, motion[], modifier[]}
+// 言霊L1辞書 v1.2 のJSON正本に基づく
+const KOTODAMA_L1 = {
+  // あ行
+  "あ": { direction: "外向", motion: ["起点", "拡散"], modifier: [] },
+  "い": { direction: "内向", motion: ["収束"], modifier: [] },
+  "う": { direction: "内向", motion: ["保持"], modifier: ["蓄積"] },
+  "え": { direction: "双方向", motion: ["接続"], modifier: ["媒介"] },
+  "お": { direction: "中立", motion: ["収束", "保持"], modifier: [] },
+  // か行(切断)
+  "か": { direction: "外向", motion: ["起点", "切断"], modifier: [] },
+  "き": { direction: "外向", motion: ["切断", "収束"], modifier: [] },
+  "く": { direction: "内向", motion: ["切断", "保持"], modifier: ["蓄積"] },
+  "け": { direction: "双方向", motion: ["切断", "接続"], modifier: ["媒介"] },
+  "こ": { direction: "中立", motion: ["切断", "収束", "保持"], modifier: [] },
+  // さ行(接続+反復)
+  "さ": { direction: "外向", motion: ["接続", "起点"], modifier: ["反復"] },
+  "し": { direction: "内向", motion: ["接続", "収束"], modifier: ["反復"] },
+  "す": { direction: "内向", motion: ["接続", "保持"], modifier: ["反復", "蓄積"] },
+  "せ": { direction: "双方向", motion: ["接続"], modifier: ["反復", "媒介"] },
+  "そ": { direction: "中立", motion: ["接続", "収束", "保持"], modifier: ["反復"] },
+  // た行(切断+保持)
+  "た": { direction: "外向", motion: ["起点", "切断", "保持"], modifier: [] },
+  "ち": { direction: "外向", motion: ["切断", "収束", "保持"], modifier: [] },
+  "つ": { direction: "内向", motion: ["切断", "保持"], modifier: ["蓄積"] },
+  "て": { direction: "双方向", motion: ["切断", "接続", "保持"], modifier: ["媒介"] },
+  "と": { direction: "中立", motion: ["切断", "収束", "保持"], modifier: [] },
+  // な行(接続+持続)
+  "な": { direction: "外向", motion: ["接続", "起点"], modifier: ["持続"] },
+  "に": { direction: "内向", motion: ["接続", "収束"], modifier: ["持続"] },
+  "ぬ": { direction: "内向", motion: ["接続", "保持"], modifier: ["持続", "蓄積"] },
+  "ね": { direction: "双方向", motion: ["接続"], modifier: ["持続", "媒介"] },
+  "の": { direction: "中立", motion: ["接続", "収束", "保持"], modifier: ["持続"] },
+  // は行(拡散)
+  "は": { direction: "外向", motion: ["拡散", "起点"], modifier: [] },
+  "ひ": { direction: "外向", motion: ["拡散", "収束"], modifier: [] },
+  "ふ": { direction: "内向", motion: ["拡散", "保持"], modifier: ["蓄積"] },
+  "へ": { direction: "双方向", motion: ["拡散", "接続"], modifier: ["媒介"] },
+  "ほ": { direction: "中立", motion: ["拡散", "収束", "保持"], modifier: [] },
+  // ま行(保持)
+  "ま": { direction: "外向", motion: ["保持", "起点"], modifier: [] },
+  "み": { direction: "外向", motion: ["保持", "収束"], modifier: [] },
+  "む": { direction: "内向", motion: ["保持"], modifier: ["蓄積"] },
+  "め": { direction: "双方向", motion: ["保持", "接続"], modifier: ["媒介"] },
+  "も": { direction: "中立", motion: ["保持", "収束"], modifier: [] },
+  // や行(接続)
+  "や": { direction: "外向", motion: ["接続", "起点"], modifier: [] },
+  "ゆ": { direction: "内向", motion: ["接続", "保持"], modifier: ["蓄積"] },
+  "よ": { direction: "中立", motion: ["接続", "収束", "保持"], modifier: [] },
+  // ら行(拡散+反復)
+  "ら": { direction: "外向", motion: ["拡散", "起点"], modifier: ["反復"] },
+  "り": { direction: "外向", motion: ["拡散", "収束"], modifier: ["反復"] },
+  "る": { direction: "内向", motion: ["拡散", "保持"], modifier: ["反復", "蓄積"] },
+  "れ": { direction: "双方向", motion: ["拡散", "接続"], modifier: ["反復", "媒介"] },
+  "ろ": { direction: "中立", motion: ["拡散", "収束", "保持"], modifier: ["反復"] },
+  // わ行(接続+媒介)
+  "わ": { direction: "外向", motion: ["接続", "起点"], modifier: ["媒介"] },
+  "を": { direction: "中立", motion: [], modifier: [] }, // 機能音
+  "ん": { direction: "内向シフト", motion: [], modifier: [] }, // 機能音(内向シフト)
+};
+
+// 濁音→清音マップ
+const DAKUON_MAP = {
+  "が":"か","ぎ":"き","ぐ":"く","げ":"け","ご":"こ",
+  "ざ":"さ","じ":"し","ず":"す","ぜ":"せ","ぞ":"そ",
+  "だ":"た","ぢ":"ち","づ":"つ","で":"て","ど":"と",
+  "ば":"は","び":"ひ","ぶ":"ふ","べ":"へ","ぼ":"ほ",
+  "ぱ":"は","ぴ":"ひ","ぷ":"ふ","ぺ":"へ","ぽ":"ほ",
+};
+
+/* ============================================================
+   2. L1機能辞書(数秘 v1.0)
+   ============================================================ */
+
+const NUMEROLOGY_L1 = {
+  "1":  { meta: {気質:"陽",   役割:"リーダー",       成長:"子ども"}, direction: "外向",   motion: ["起点", "切断"],         modifier: ["瞬発"] },
+  "2":  { meta: {気質:"陰",   役割:"サポーター",     成長:"子ども"}, direction: "内向",   motion: ["接続", "保持"],         modifier: ["媒介"] },
+  "3":  { meta: {気質:"陽",   役割:"ムードメーカー", 成長:"子ども"}, direction: "外向",   motion: ["起点", "拡散"],         modifier: ["瞬発", "反復"] },
+  "4":  { meta: {気質:"陰",   役割:"サポーター",     成長:"青年"  }, direction: "内向",   motion: ["接続", "保持"],         modifier: ["持続", "蓄積"] },
+  "5":  { meta: {気質:"陽",   役割:"ムードメーカー", 成長:"青年"  }, direction: "外向",   motion: ["拡散", "接続"],         modifier: ["瞬発", "反復"] },
+  "6":  { meta: {気質:"中庸", 役割:"リーダー",       成長:"青年"  }, direction: "双方向", motion: ["保持", "接続", "起点"], modifier: ["持続", "媒介"] },
+  "7":  { meta: {気質:"陰",   役割:"サポーター",     成長:"大人"  }, direction: "内向",   motion: ["切断", "収束"],         modifier: ["持続", "蓄積"] },
+  "8":  { meta: {気質:"陽",   役割:"ムードメーカー", 成長:"大人"  }, direction: "外向",   motion: ["拡散", "起点", "切断"], modifier: ["持続", "蓄積"] },
+  "9":  { meta: {気質:"陰",   役割:"リーダー",       成長:"大人"  }, direction: "内向",   motion: ["収束", "切断", "接続"], modifier: ["持続", "媒介"] },
+  "11": { meta: {気質:"陰",   役割:"サポーター",     成長:"子ども"}, direction: "内向",   motion: ["接続", "起点"],         modifier: ["瞬発", "媒介", "蓄積"] },
+  "22": { meta: {気質:"陰",   役割:"サポーター",     成長:"青年"  }, direction: "内向",   motion: ["起点", "保持", "接続"], modifier: ["持続", "蓄積", "媒介"] },
+  "33": { meta: {気質:"中庸", 役割:"リーダー",       成長:"青年"  }, direction: "双方向", motion: ["拡散", "起点", "接続"], modifier: ["持続", "媒介"] },
+};
+
+/* ============================================================
+   3. 数秘計算(ダイヤ式 v2.0)
+   ============================================================ */
+
+function computeDay(day) {
+  // 2桁の場合:組み合わせ + 収束値
+  // 1桁の場合:そのまま
+  const result = { primary: [], converged: null, isPair: false };
+
+  if (day < 10) {
+    result.primary = [String(day)];
+  } else {
+    const tens = Math.floor(day / 10);
+    const ones = day % 10;
+    if (ones === 0) {
+      // 10, 20, 30 → 1桁化(0は増幅器)
+      result.primary = [String(tens)];
+      result.amplified = true;
+    } else {
+      result.primary = [String(tens), String(ones)];
+      result.isPair = true;
+      let sum = tens + ones;
+      // マスター数チェック(11/22)
+      if (sum === 11 || sum === 22) {
+        result.converged = String(sum);
+      } else if (sum >= 10) {
+        sum = Math.floor(sum / 10) + (sum % 10);
+        result.converged = String(sum);
+      } else {
+        result.converged = String(sum);
+      }
+    }
+  }
+  return result;
+}
+
+function computeMonth(month) {
+  // 1桁化、ただし11はマスター数として保持
+  if (month === 11) return { value: "11", isMaster: true };
+  if (month < 10) return { value: String(month), isMaster: false };
+  // 12月 → 1+2=3
+  const sum = Math.floor(month / 10) + (month % 10);
+  return { value: String(sum), isMaster: false, amplified: month === 10 || month === 20 };
+}
+
+function computeFullSum(year, month, day) {
+  // 全桁合計(参考表示・v3.0以降の上級診断)
+  const digits = String(year) + String(month) + String(day);
+  let sum = 0;
+  for (const ch of digits) sum += parseInt(ch);
+  const trace = [sum];
+  while (sum >= 10 && sum !== 11 && sum !== 22 && sum !== 33) {
+    let next = 0;
+    for (const ch of String(sum)) next += parseInt(ch);
+    sum = next;
+    trace.push(sum);
+  }
+  return { final: String(sum), trace };
+}
+
+/* ============================================================
+   4. L1機能タグ取得 + 重複減衰
+   ============================================================ */
+
+// ひらがな1名前を「音単位」に分解(拗音は基音80%+グライド20%)
+// 戻り値:[{ch: "し", weight: 0.8}, {ch: "よ", weight: 0.2}, ...]
+function decomposeSounds(name) {
+  const result = [];
+  for (let i = 0; i < name.length; i++) {
+    let ch = name[i];
+    const next = name[i + 1];
+    
+    // 拗音処理(基音80% + グライド20%)
+    // 小文字「ゃゅょ」+ 母音小文字「ぁぃぅぇぉ」をグライド音として扱う
+    if (next && "ゃゅょぁぃぅぇぉ".includes(next)) {
+      // 基音(濁音→清音変換は後で適用)
+      let baseChar = DAKUON_MAP[ch] || ch;
+      result.push({ ch: baseChar, weight: 0.8 });
+      
+      // グライド音(小文字を大文字相当へ変換)
+      const glideMap = {
+        "ゃ": "や", "ゅ": "ゆ", "ょ": "よ",
+        "ぁ": "あ", "ぃ": "い", "ぅ": "う", "ぇ": "え", "ぉ": "お"
+      };
+      const glideChar = glideMap[next];
+      if (glideChar) {
+        result.push({ ch: glideChar, weight: 0.2 });
+      }
+      i++; // 次の文字をスキップ
+      continue;
+    }
+    
+    // 促音・長音はスキップ(暫定)
+    if (ch === "っ" || ch === "ー") continue;
+    
+    // 濁音→清音
+    if (DAKUON_MAP[ch]) ch = DAKUON_MAP[ch];
+    
+    result.push({ ch, weight: 1.0 });
+  }
+  return result;
+}
+
+// 音列(decomposeSounds結果)からL1機能タグを集計
+function getKotodamaL1(name) {
+  if (!name) return null;
+  
+  const sounds = decomposeSounds(name);
+  
+  // 重複減衰(50%, 25%, 12.5%)を適用しつつ集計
+  const counter = {};
+  const features = {
+    direction: { 外向: 0, 内向: 0, 双方向: 0, 中立: 0 },
+    motion: {},
+    modifier: {}
+  };
+  
+  for (const { ch, weight } of sounds) {
+    const def = KOTODAMA_L1[ch];
+    if (!def) continue;
+    counter[ch] = (counter[ch] || 0) + 1;
+    // 1回目1.0、2回目0.5、3回目0.25...
+    const decay = Math.pow(0.5, counter[ch] - 1);
+    // 拗音グライドは weight=0.2 を反映
+    const w = decay * weight;
+    
+    // 「ん」は内向シフト(direction を内向側に寄せる触媒)
+    if (def.direction === "内向シフト") {
+      features.direction.内向 += 0.3 * w;
+      continue;
+    }
+    if (features.direction[def.direction] !== undefined) {
+      features.direction[def.direction] += w;
+    }
+    for (const m of def.motion) {
+      features.motion[m] = (features.motion[m] || 0) + w;
+    }
+    for (const mod of def.modifier) {
+      features.modifier[mod] = (features.modifier[mod] || 0) + w;
+    }
+  }
+  
+  // 集計結果から代表値を抽出
+  const direction = Object.entries(features.direction)
+    .sort((a,b) => b[1] - a[1])[0]?.[0] || "中立";
+  
+  // 動き:0.5以上を採用、最初の出現順で並べる
+  const motionOrdered = [];
+  const motionSeen = new Set();
+  for (const { ch } of sounds) {
+    const def = KOTODAMA_L1[ch];
+    if (!def) continue;
+    for (const m of def.motion) {
+      if (!motionSeen.has(m) && (features.motion[m] || 0) >= 0.5) {
+        motionSeen.add(m);
+        motionOrdered.push(m);
+      }
+    }
+  }
+  
+  // 修飾:0.5以上を採用
+  const modifierList = Object.entries(features.modifier)
+    .filter(([_, v]) => v >= 0.5)
+    .map(([k, _]) => k);
+  
+  return {
+    sounds: sounds.map(s => s.ch),  // L3で使うため文字列のみのリストも返す
+    sounds_with_weight: sounds,      // 詳細
+    direction,
+    motion: motionOrdered,
+    modifier: modifierList,
+    raw_scores: features
+  };
+}
+
+function getNumerologyL1(year, month, day) {
+  const dayResult = computeDay(day);
+  const monthResult = computeMonth(month);
+  const fullSum = computeFullSum(year, month, day);
+
+  // 出現する数字を収集(重複カウント)
+  const appearances = {};
+  for (const n of dayResult.primary) {
+    appearances[n] = (appearances[n] || 0) + 1;
+  }
+  // 月の数字も追加(マスター数なら2と4の性質も持つが、ここでは表記通りに)
+  appearances[monthResult.value] = (appearances[monthResult.value] || 0) + 1;
+  // 収束値があれば(注意:重複強調にはカウントしない・参考扱い)
+
+  // 各数字をL1機能化
+  const numbers = {};
+  for (const num of Object.keys(appearances)) {
+    const def = NUMEROLOGY_L1[num];
+    if (!def) continue;
+    numbers[num] = {
+      ...def,
+      weight: appearances[num] // 線形×軸数(統合ロジックv1.0)
+    };
+  }
+
+  return {
+    day: dayResult,
+    month: monthResult,
+    fullSum, // 参考表示用
+    appearances,
+    numbers
+  };
+}
+
+/* ============================================================
+   5. L2プロセス生成(v1.0)
+   ============================================================ */
+
+const NATURAL_ORDER = ["起点", "拡散", "収束", "接続", "切断", "保持"];
+
+function needsCorrection(motionList) {
+  if (!motionList.length) return false;
+  const head = motionList[0];
+  const rest = motionList.slice(1);
+  if (head === "保持" && rest.includes("起点")) return true;
+  if (head === "切断" && (rest.includes("拡散") || rest.includes("収束"))) return true;
+  return false;
+}
+
+function orderMotion(motionList) {
+  const ordered = [...motionList];
+  if (needsCorrection(ordered)) {
+    return ordered.sort((a, b) => NATURAL_ORDER.indexOf(a) - NATURAL_ORDER.indexOf(b));
+  }
+  return ordered;
+}
+
+function buildL2WithTags(L1) {
+  const process = orderMotion(L1.motion);
+  const tags = [];
+  if (process.includes("接続")) {
+    for (const mod of L1.modifier) {
+      tags.push(`接続_${mod}`);
+    }
+  }
+  return {
+    process,
+    direction: L1.direction,
+    modifier: L1.modifier,
+    tags
+  };
+}
+
+/* ============================================================
+   6. 交差判定(統合ロジック v1.0)
+   ============================================================ */
+
+function classifyDirectionPair(k_dir, n_dir) {
+  if (k_dir === n_dir) {
+    return { category: "common", payload: `${k_dir}(×1.5)` };
+  }
+  const inclusion = new Set([
+    "双方向|外向", "外向|双方向",
+    "双方向|内向", "内向|双方向",
+  ]);
+  if (inclusion.has(`${k_dir}|${n_dir}`)) {
+    return {
+      category: "complex",
+      payload: { axis: "方向", kotodama: k_dir, numerology: n_dir, relation: "包含" }
+    };
+  }
+  const dynamic = new Set(["外向", "内向", "双方向"]);
+  if ((k_dir === "中立" && dynamic.has(n_dir)) ||
+      (n_dir === "中立" && dynamic.has(k_dir))) {
+    return {
+      category: "complex",
+      payload: { axis: "方向", kotodama: k_dir, numerology: n_dir, relation: "動的×静的" }
+    };
+  }
+  if ((k_dir === "外向" && n_dir === "内向") ||
+      (k_dir === "内向" && n_dir === "外向")) {
+    return {
+      category: "conflict",
+      payload: { axis: "方向", kotodama: k_dir, numerology: n_dir, type: "(三分類で判定)" }
+    };
+  }
+  return null;
+}
+
+function classifyMotionConflict(k_motion, n_motion, k_mod, n_mod) {
+  const conflicts = [];
+  const pairs = [
+    ["拡散", "収束"],
+    ["接続", "切断"],
+    ["起点", "保持"],
+  ];
+  for (const [a, b] of pairs) {
+    const k_has_a = k_motion.includes(a);
+    const k_has_b = k_motion.includes(b);
+    const n_has_a = n_motion.includes(a);
+    const n_has_b = n_motion.includes(b);
+
+    let k_val, n_val;
+    if (k_has_a && n_has_b && !k_has_b && !n_has_a) { k_val = a; n_val = b; }
+    else if (k_has_b && n_has_a && !k_has_a && !n_has_b) { k_val = b; n_val = a; }
+    else continue;
+
+    // 三分類判定
+    let type;
+    // タイプ①:時間分離(両方がprocess上にある = 既に成立)
+    if ((k_motion.includes(k_val) && n_motion.includes(n_val))) {
+      type = "時間分離";
+    } else {
+      // タイプ②/③(動きの場合は時間分離が基本、それ以外は同時衝突)
+      type = "時間分離";
+    }
+    conflicts.push({ axis: "動き", kotodama: k_val, numerology: n_val, type });
+  }
+  return conflicts;
+}
+
+function detectTempoTension(k_mod, n_mod) {
+  const pairs = [["瞬発", "持続"], ["瞬発", "蓄積"]];
+  const result = [];
+  const k_set = new Set(k_mod);
+  const n_set = new Set(n_mod);
+  for (const [a, b] of pairs) {
+    if (k_set.has(a) && n_set.has(b)) {
+      result.push({ kotodama: a, numerology: b });
+    } else if (k_set.has(b) && n_set.has(a)) {
+      result.push({ kotodama: b, numerology: a });
+    }
+  }
+  return result;
+}
+
+function buildIntersection(k_L2, n_L2) {
+  const common = [];
+  const conflict = [];
+  const complex = [];
+  const modifier_conflict = [];
+  const auxiliary = { kotodama_only: [], numerology_only: [] };
+
+  // 方向
+  const dirResult = classifyDirectionPair(k_L2.direction, n_L2.direction);
+  if (dirResult) {
+    if (dirResult.category === "common") common.push(dirResult.payload);
+    else if (dirResult.category === "complex") complex.push(dirResult.payload);
+    else if (dirResult.category === "conflict") conflict.push(dirResult.payload);
+  }
+
+  // 動きの共通
+  const k_motion_set = new Set(k_L2.process);
+  const n_motion_set = new Set(n_L2.process);
+  for (const m of k_motion_set) {
+    if (n_motion_set.has(m)) common.push(`${m}(×1.5)`);
+  }
+
+  // 動きの矛盾
+  const motionConflicts = classifyMotionConflict(
+    k_L2.process, n_L2.process, k_L2.modifier, n_L2.modifier
+  );
+  conflict.push(...motionConflicts);
+
+  // テンポ張力
+  modifier_conflict.push(...detectTempoTension(k_L2.modifier, n_L2.modifier));
+
+  // 補助(片側のみの動き)
+  const conflictMotions = new Set();
+  for (const c of motionConflicts) {
+    conflictMotions.add(c.kotodama);
+    conflictMotions.add(c.numerology);
+  }
+  for (const m of k_motion_set) {
+    if (!n_motion_set.has(m) && !conflictMotions.has(m)) {
+      auxiliary.kotodama_only.push(m);
+    }
+  }
+  for (const m of n_motion_set) {
+    if (!k_motion_set.has(m) && !conflictMotions.has(m)) {
+      auxiliary.numerology_only.push(m);
+    }
+  }
+
+  return { common, conflict, complex, modifier_conflict, auxiliary };
+}
+
+/* ============================================================
+   7. レンダリング
+   ============================================================ */
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function renderChips(items, type) {
+  if (!items || items.length === 0) {
+    return '<span class="chip">—</span>';
+  }
+  return items.map(s => `<span class="chip ${type}">${escapeHtml(s)}</span>`).join("");
+}
+
+function renderL2Block(L2, label) {
+  return `
+    <div class="system">
+      <div class="system-label">${label}</div>
+      <h3>process(動きの順序)</h3>
+      <div class="process-flow">${L2.process.length ? L2.process.map(escapeHtml).join(" → ") : "(なし)"}</div>
+      <h3>direction</h3>
+      <div class="chips">${renderChips([L2.direction], "direction")}</div>
+      <h3>modifier</h3>
+      <div class="chips">${renderChips(L2.modifier, "modifier")}</div>
+      ${L2.tags.length ? `
+        <h3>tags(媒介サブルール)</h3>
+        <div class="chips">${renderChips(L2.tags, "tag")}</div>
+      ` : ""}
+    </div>
+  `;
+}
+
+function renderIntersection(intersection) {
+  const card = (cls, label, items, renderFn) => `
+    <div class="intersection-card ${cls}">
+      <div class="label">${label}</div>
+      ${items.length ? items.map(renderFn).join("") : '<div class="empty">なし</div>'}
+    </div>
+  `;
+
+  return `
+    <div class="intersection-grid">
+      ${card("common", "COMMON · 共通強化", intersection.common,
+        item => `<div class="item">${escapeHtml(item)}</div>`)}
+      ${card("conflict", "CONFLICT · 矛盾(駆動力)", intersection.conflict,
+        item => `<div class="item">${item.axis}: ${item.kotodama} ↔ ${item.numerology} <span style="color:var(--ink-3)">[${item.type}]</span></div>`)}
+      ${card("complex", "COMPLEX · 干渉(包含/動的×静的)", intersection.complex,
+        item => `<div class="item">${item.axis}: ${item.kotodama} × ${item.numerology} <span style="color:var(--ink-3)">[${item.relation}]</span></div>`)}
+      ${card("tension", "TEMPO TENSION · テンポ張力", intersection.modifier_conflict,
+        item => `<div class="item">${item.kotodama} ↔ ${item.numerology}</div>`)}
+      ${card("auxiliary", "AUXILIARY · 片側のみ", [
+        ...intersection.auxiliary.kotodama_only.map(m => `言霊のみ: ${m}`),
+        ...intersection.auxiliary.numerology_only.map(m => `数秘のみ: ${m}`)
+      ], item => `<div class="item">${escapeHtml(item)}</div>`)}
+    </div>
+  `;
+}
+
+function renderNumerologyCalc(num_L1) {
+  const d = num_L1.day;
+  const m = num_L1.month;
+  const fs = num_L1.fullSum;
+
+  let dayLine;
+  if (d.isPair) {
+    dayLine = `日:${d.primary[0]}${d.primary[1]} → ${d.primary[0]} × ${d.primary[1]}` +
+              (d.converged ? `(収束値:${d.converged})` : "");
+  } else {
+    dayLine = `日:${d.primary[0]}` + (d.amplified ? "(0増幅)" : "");
+  }
+
+  const monthLine = `月:${m.value}` +
+    (m.isMaster ? "(マスター数)" : "") +
+    (m.amplified ? "(0増幅)" : "");
+
+  return `
+    <div class="calc-box">${escapeHtml(dayLine)}
+${escapeHtml(monthLine)}</div>
+    <div class="calc-box reference">参考(v3.0以降の上級診断):
+全桁合計 = ${fs.trace.join(" → ")} → 運命数:${fs.final}
+※v2.0では未使用</div>
+  `;
+}
+
+function renderNumberDetail(numbers) {
+  const rows = Object.entries(numbers).map(([n, def]) => `
+    <div class="system" style="margin-bottom:8px">
+      <div class="system-label">数字 ${n}${def.weight > 1 ? ` <span class="chip weight">×${def.weight.toFixed(1)}</span>` : ""}</div>
+      <div class="meta-info">${def.meta.気質} / ${def.meta.役割} / ${def.meta.成長}</div>
+      <div style="margin-top:8px" class="chips">
+        ${renderChips([def.direction], "direction")}
+        ${renderChips(def.motion, "motion")}
+        ${renderChips(def.modifier, "modifier")}
+      </div>
+    </div>
+  `).join("");
+  return rows;
+}
+
+/* ============================================================
+   8. メイン処理(v0.3:姓・名・数秘の3軸処理)
+   ============================================================ */
+
+function run() {
+  const lastName = document.getElementById("lastName").value.trim();
+  const firstName = document.getElementById("firstName").value.trim();
+  const year = parseInt(document.getElementById("year").value);
+  const month = parseInt(document.getElementById("month").value);
+  const day = parseInt(document.getElementById("day").value);
+
+  const errBox = document.getElementById("error-box");
+  errBox.innerHTML = "";
+
+  if (!year || !month || !day) {
+    errBox.innerHTML = '<div class="error">年・月・日を入力してください。</div>';
+    return;
+  }
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    errBox.innerHTML = '<div class="error">月(1-12)・日(1-31)の範囲で入力してください。</div>';
+    return;
+  }
+
+  // ===== 各軸の処理(レイ提言の3軸分離) =====
+  
+  // 名(エンジン:本人の自然な動き方)
+  const fn_L1 = firstName ? getKotodamaL1(firstName) : null;
+  const fn_L2 = fn_L1 ? buildL2WithTags(fn_L1) : null;
+  
+  // 姓(出力インターフェース:見え方・出方)
+  const ln_interface = lastName ? getSurnameInterface(lastName) : null;
+  
+  // 数秘(エネルギー条件:強度・優先度・テンポ)
+  const n_L1 = getNumerologyL1(year, month, day);
+  const n_adj = getNumerologyAdjustment(n_L1);
+  
+  // ===== 統合の3ステップ(レイ提言) =====
+  // Step1: 名 → 内部プロセス(完了)
+  // Step2: 内部プロセス × 数秘 → 内部状態
+  const adjustedState = fn_L2 ? adjustWithNumerology(fn_L2, n_adj) : null;
+  // Step3: 内部状態 × 姓 → 出力(現象)
+  const output = adjustedState ? transformWithSurname(adjustedState, ln_interface) : null;
+
+  // ===== 出力 =====
+  const out = document.getElementById("output");
+  out.classList.add("active");
+
+  let html = "";
+
+  // ============ L0: 入力 ============
+  html += `
+    <div class="layer">
+      <div class="layer-header">
+        <span>LAYER 0 · 入力</span>
+        <span class="badge">surname + first name + birthdate</span>
+      </div>
+      <div class="layer-body">
+        <div class="feature-grid">
+          <div class="key">苗字</div>
+          <div class="val">${lastName ? escapeHtml(lastName) : "<span style='color:var(--ink-3)'>(未入力)</span>"}</div>
+          <div class="key">名前</div>
+          <div class="val">${firstName ? escapeHtml(firstName) : "<span style='color:var(--ink-3)'>(未入力)</span>"}</div>
+          <div class="key">生年月日</div>
+          <div class="val">${year}年 ${month}月 ${day}日</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // ============ L1: 各軸の機能タグ ============
+  html += `
+    <div class="layer">
+      <div class="layer-header">
+        <span>LAYER 1 · 各軸の機能タグ</span>
+        <span class="badge">名=エンジン · 姓=インターフェース · 数秘=エネルギー条件</span>
+      </div>
+      <div class="layer-body">
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px;">
+          
+          ${fn_L1 ? `
+            <div class="system">
+              <div class="system-label">名 · エンジン(動き)</div>
+              <h3>音の分解</h3>
+              <div class="chips">${fn_L1.sounds.map(s => `<span class="chip">${escapeHtml(s)}</span>`).join("")}</div>
+              <h3>direction</h3>
+              <div class="chips">${renderChips([fn_L1.direction], "direction")}</div>
+              <h3>motion</h3>
+              <div class="chips">${renderChips(fn_L1.motion, "motion")}</div>
+              <h3>modifier</h3>
+              <div class="chips">${renderChips(fn_L1.modifier, "modifier")}</div>
+            </div>
+          ` : `
+            <div class="system"><div class="system-label">名</div><p class="note">未入力</p></div>
+          `}
+          
+          ${ln_interface ? `
+            <div class="system">
+              <div class="system-label">姓 · インターフェース(出方)</div>
+              <h3>音の分解</h3>
+              <div class="chips">${ln_interface.sounds.map(s => `<span class="chip">${escapeHtml(s)}</span>`).join("")}</div>
+              <h3>5軸スコア</h3>
+              <div class="feature-grid" style="grid-template-columns: 110px 1fr; font-size:12px">
+                ${Object.entries(ln_interface.raw_scores).map(([k,v]) => `
+                  <div class="key">${k}</div>
+                  <div class="val">${v.toFixed(2)} <span class="meta-info">${ln_interface.labels[k]}</span></div>
+                `).join("")}
+              </div>
+            </div>
+          ` : `
+            <div class="system"><div class="system-label">姓</div><p class="note">未入力</p></div>
+          `}
+          
+          <div class="system">
+            <div class="system-label">数秘 · エネルギー条件</div>
+            ${renderNumerologyCalc(n_L1)}
+            <h3>補正値</h3>
+            ${n_adj ? `
+              <div class="feature-grid" style="grid-template-columns: 110px 1fr; font-size:12px">
+                <div class="key">weight</div>
+                <div class="val">${n_adj.weight > 0 ? "+" : ""}${n_adj.weight.toFixed(1)}</div>
+                <div class="key">priority</div>
+                <div class="val">${n_adj.priority.length ? n_adj.priority.join(", ") : "—"}</div>
+                <div class="key">persistence</div>
+                <div class="val">${n_adj.persistence > 0 ? "+" : ""}${n_adj.persistence.toFixed(1)}</div>
+                <div class="key">timing</div>
+                <div class="val">${n_adj.timing.length ? n_adj.timing.join(", ") : "—"}</div>
+              </div>
+            ` : ""}
+          </div>
+          
+        </div>
+      </div>
+    </div>
+  `;
+
+  // ============ L2: 名のプロセス + 統合 ============
+  if (fn_L2) {
+    html += `
+      <div class="layer">
+        <div class="layer-header">
+          <span>LAYER 2 · 名のプロセス生成</span>
+          <span class="badge">エンジンの動き方</span>
+        </div>
+        <div class="layer-body">
+          ${renderL2Block(fn_L2, "名 L2(エンジン)")}
+        </div>
+      </div>
+    `;
+  }
+  
+  // ============ L2.5: Adjust(名×数秘 → 内部状態) ============
+  if (adjustedState) {
+    html += `
+      <div class="layer">
+        <div class="layer-header">
+          <span>LAYER 2.5 · Adjust(数秘で補正)</span>
+          <span class="badge">内部プロセス × 数秘 → 内部状態</span>
+        </div>
+        <div class="layer-body">
+          <h3>調整後の process(数秘priorityで並び替え)</h3>
+          <div class="process-flow">${adjustedState.process.length ? adjustedState.process.join(" → ") : "(なし)"}</div>
+          <h3>direction(変化なし・数秘では変えない)</h3>
+          <div class="chips">${renderChips([adjustedState.direction], "direction")}</div>
+          <h3>補正メタデータ</h3>
+          <p class="note">${
+            n_adj ? 
+            `weight ${n_adj.weight > 0 ? "+" : ""}${n_adj.weight.toFixed(1)} / persistence ${n_adj.persistence > 0 ? "+" : ""}${n_adj.persistence.toFixed(1)} / priority [${n_adj.priority.join(", ")}] / timing [${n_adj.timing.join(", ")}]` :
+            "—"
+          }</p>
+        </div>
+      </div>
+    `;
+  }
+  
+  // ============ L3: Transform(× 姓 → 出力) + interaction ============
+  if (output && ln_interface) {
+    html += `
+      <div class="layer">
+        <div class="layer-header">
+          <span>LAYER 3 · Transform(姓で出力変換)</span>
+          <span class="badge">内部状態 × 姓 → 現象</span>
+        </div>
+        <div class="layer-body">
+          <h3>名 × 姓 interaction</h3>
+          ${output.interaction && output.interaction.length > 0 ? `
+            <div class="intersection-grid">
+              ${output.interaction.map(obs => {
+                const cls = obs.type === "一致" ? "common" : obs.type === "衝突" ? "conflict" : "complex";
+                return `
+                  <div class="intersection-card ${cls}">
+                    <div class="label">${obs.type}</div>
+                    <div class="item">${escapeHtml(obs.note)}</div>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          ` : `<p class="note">interaction の観察なし(姓または名が未入力 / 該当パターンなし)</p>`}
+        </div>
+      </div>
+    `;
+  }
+  
+  // ============ L3-final: 表現生成(ユーザー出力) ============
+  const apiKey = document.getElementById("apiKey").value.trim();
+  // GitHub Pages上かどうかの判定（location.hostnameで判定）
+  const isGitHubPages = location.hostname.includes("github.io");
+  const canCallAI = apiKey || isGitHubPages;
+  const L3_final = buildL3v3(fn_L1, fn_L2, adjustedState, output, ln_interface, n_L1, n_adj);
+
+  if (L3_final && canCallAI) {
+    // AI生成（GitHub Pages上 or APIキーあり）
+    html += `
+      <div class="layer">
+        <div class="layer-header">
+          <span>LAYER 3 · 表現層(AI生成)</span>
+          <span class="badge">Haiku/Sonnet ハイブリッド · プロンプト設計書 v0.1</span>
+        </div>
+        <div class="layer-body">
+          ${renderL3v3(L3_final)}
+        </div>
+      </div>
+    `;
+  } else if (L3_final && !canCallAI) {
+    // APIキーなし・ローカル環境 → 案内表示
+    html += `
+      <div class="layer">
+        <div class="layer-header">
+          <span>LAYER 3 · 表現層</span>
+          <span class="badge">APIキー未入力</span>
+        </div>
+        <div class="layer-body">
+          <p class="note" style="padding:12px; border:1px dashed var(--accent-3); font-size:13px; color:var(--ink-2);">
+            🔑 ローカルで開く場合は、上部のAPIキー欄に Anthropic APIキーを入力してください。
+          </p>
+        </div>
+      </div>
+    `;
+  }
+
+  // ============ JSON ダンプ ============
+  html += `
+    <details>
+      <summary>JSON 全構造を表示</summary>
+      <pre>${escapeHtml(JSON.stringify({
+        input: { lastName, firstName, year, month, day },
+        firstName_L1: fn_L1,
+        firstName_L2: fn_L2,
+        surname_interface: ln_interface,
+        numerology_L1: n_L1,
+        numerology_adjust: n_adj,
+        adjusted_state: adjustedState,
+        output: output
+      }, null, 2))}</pre>
+    </details>
+  `;
+
+  out.innerHTML = html;
+
+  // AI生成を非同期起動（GitHub Pages上 or APIキーあり）
+  if (L3_final && canCallAI) {
+    const container = document.getElementById("l3-ai-container");
+    if (container) {
+      generateL3WithAI(
+        firstName, lastName,
+        fn_L1, fn_L2, adjustedState, output, ln_interface, n_L1, n_adj,
+        container, apiKey
+      ).catch(e => {
+        container.innerHTML = `<p style="color:var(--accent); font-size:12px;">AI生成エラー: ${escapeHtml(String(e.message || e))}</p>`;
+      });
+    }
+  }
+}
+
+// 数秘の複数数字を1つのL2に集約する
+function buildNumerologyAggregateL2(n_L1) {
+  const dirCount = {};
+  const motionMap = {}; // motion -> 累積weight
+  const modSet = new Set();
+  const allMotionInOrder = [];
+  const motionSeen = new Set();
+
+  for (const [num, def] of Object.entries(n_L1.numbers)) {
+    const w = def.weight || 1.0;
+    dirCount[def.direction] = (dirCount[def.direction] || 0) + w;
+    for (const m of def.motion) {
+      motionMap[m] = (motionMap[m] || 0) + w;
+      if (!motionSeen.has(m)) {
+        motionSeen.add(m);
+        allMotionInOrder.push(m);
+      }
+    }
+    for (const mod of def.modifier) modSet.add(mod);
+  }
+
+  // 代表direction
+  const direction = Object.entries(dirCount)
+    .sort((a, b) => b[1] - a[1])[0]?.[0] || "中立";
+
+  // motion順序:出現順を保持
+  const process = orderMotion(allMotionInOrder);
+
+  // tags
+  const tags = [];
+  if (process.includes("接続")) {
+    for (const mod of [...modSet]) tags.push(`接続_${mod}`);
+  }
+
+  return {
+    process,
+    direction,
+    modifier: [...modSet],
+    tags
+  };
+}
+
+/* ============================================================
+   8.5 姓インターフェース辞書 v0.1(叩き台)
+        姓 = 出力インターフェース(性質を決めない・出方だけ)
+   ============================================================ */
+
+// 5軸:scale / openness / stability / visibility / constraint
+// 値:数値(±)。1音あたり最大2軸まで。性格ワード禁止。
+const SURNAME_INTERFACE = {
+  // 母音
+  "あ": { openness: +2, scale: +1 },
+  "い": { visibility: -1, constraint: +1 },
+  "う": { openness: -2, scale: -1 },
+  "え": { openness: +1, visibility: +1 },
+  "お": { openness: +2, visibility: +1 },
+  // プリセット必須音
+  "し": { constraint: +1, stability: +1 },
+  "た": { scale: +1, constraint: +1 },
+  "な": { stability: +2, openness: +1 },
+  "の": { openness: +1, stability: +1 },
+  "ら": { openness: +1, visibility: +1 },
+  "わ": { openness: +1, stability: +1 },
+  "む": { openness: -2, visibility: -1 },
+  "か": { scale: +1, visibility: +1 },
+  "て": { constraint: +1, visibility: +1 },
+  "み": { visibility: +1, stability: +1 },
+  "と": { scale: +1, openness: +1 },
+  // 主要音
+  "こ": { stability: +2, constraint: +1 },
+  "さ": { openness: +1, visibility: +1 },
+  "つ": { scale: +1, constraint: +1 },
+  "は": { openness: +2, visibility: +1 },
+  "ま": { stability: +2, openness: +1 },
+  "や": { openness: +1, visibility: -1 },
+  // グライド音(拗音用)
+  "ゃ": { openness: +1 },
+  "ゅ": { openness: -1 },
+  "ょ": { visibility: -1 },
+};
+
+// 姓のインターフェース特性を集計
+function getSurnameInterface(lastName) {
+  if (!lastName) return null;
+  
+  const sounds = decomposeSounds(lastName);
+  const counter = {};
+  const scores = {
+    scale: 0,
+    openness: 0,
+    stability: 0,
+    visibility: 0,
+    constraint: 0
+  };
+  
+  for (const { ch, weight } of sounds) {
+    const def = SURNAME_INTERFACE[ch];
+    if (!def) continue;
+    counter[ch] = (counter[ch] || 0) + 1;
+    const decay = Math.pow(0.5, counter[ch] - 1);
+    const w = decay * weight;
+    
+    for (const [axis, value] of Object.entries(def)) {
+      scores[axis] += value * w;
+    }
+  }
+  
+  // 強度ラベル化
+  const labelize = v => {
+    if (v >= 3.0) return "very high";
+    if (v >= 1.5) return "high";
+    if (v >= 0.5) return "medium";
+    if (v >= -0.5) return "neutral";
+    if (v >= -1.5) return "low";
+    return "very low";
+  };
+  
+  const labels = {};
+  for (const [axis, v] of Object.entries(scores)) {
+    labels[axis] = labelize(v);
+  }
+  
+  return {
+    sounds: sounds.map(s => s.ch),
+    raw_scores: scores,
+    labels
+  };
+}
+
+/* ============================================================
+   8.6 数秘補正辞書 v0.1(叩き台)
+        数秘 = エネルギー条件(構造ではない・調整だけ)
+   ============================================================ */
+
+// 4軸:weight / priority / persistence / timing
+// motion を作らない・あくまで調整
+const NUMEROLOGY_ADJUST = {
+  "1":  { weight: +2, priority: "起点", timing: "immediate" },
+  "2":  { weight: -1, priority: "接続", timing: "delayed" },
+  "3":  { weight: +1, priority: "拡散", persistence: -1 },
+  "4":  { weight:  0, persistence: +2, timing: "early" },
+  "5":  { weight: +1, priority: "拡散", timing: "cyclic", persistence: -1 },
+  "6":  { weight:  0, priority: "接続", persistence: +1 },
+  "7":  { weight: -1, priority: "収束", persistence: +2 },
+  "8":  { weight: +2, priority: "拡散", persistence: +1, timing: "immediate" },
+  "9":  { weight:  0, priority: "収束", persistence: +1, timing: "delayed" },
+  "11": { weight: +2, priority: "接続", timing: "immediate" },
+  "22": { weight: +2, persistence: +2, timing: "early" },
+  "33": { weight: +1, priority: "接続", persistence: +2 },
+};
+
+// 数秘から補正を集計(複数数字の補正を合算)
+function getNumerologyAdjustment(n_L1) {
+  if (!n_L1 || !n_L1.numbers) return null;
+  
+  const adj = {
+    weight: 0,
+    priority: [],     // 複数同居可
+    persistence: 0,
+    timing: []        // 複数同居可(矛盾は意味として保持)
+  };
+  
+  for (const [num, def] of Object.entries(n_L1.numbers)) {
+    const adjDef = NUMEROLOGY_ADJUST[num];
+    if (!adjDef) continue;
+    const w = def.weight || 1.0; // 重複強調 ×2.0 を反映
+    
+    if (typeof adjDef.weight === "number") {
+      adj.weight += adjDef.weight * w;
+    }
+    if (typeof adjDef.persistence === "number") {
+      adj.persistence += adjDef.persistence * w;
+    }
+    if (adjDef.priority && !adj.priority.includes(adjDef.priority)) {
+      adj.priority.push(adjDef.priority);
+    }
+    if (adjDef.timing && !adj.timing.includes(adjDef.timing)) {
+      adj.timing.push(adjDef.timing);
+    }
+  }
+  
+  return adj;
+}
+
+/* ============================================================
+   8.7 Adjust:名のL2を数秘で補正(構造は変えず、強度・優先度・テンポ)
+   ============================================================ */
+
+function adjustWithNumerology(firstName_L2, numerologyAdj) {
+  if (!firstName_L2) return null;
+  
+  // 構造はそのまま、補正を「メタデータ」として付ける
+  // motionの並び替え:数秘priorityで指定されたmotionを先頭に持ってくる
+  let process = [...firstName_L2.process];
+  if (numerologyAdj && numerologyAdj.priority.length > 0) {
+    // priorityで指定されたmotionが process にあれば、その順に並べ替え
+    const reordered = [];
+    for (const p of numerologyAdj.priority) {
+      if (process.includes(p)) {
+        reordered.push(p);
+      }
+    }
+    // 残りを元の順で追加
+    for (const m of process) {
+      if (!reordered.includes(m)) reordered.push(m);
+    }
+    process = reordered;
+  }
+  
+  return {
+    process,
+    direction: firstName_L2.direction,
+    modifier: firstName_L2.modifier,
+    tags: firstName_L2.tags,
+    adjustments: numerologyAdj  // 強度・持続・タイミングは別フィールド
+  };
+}
+
+/* ============================================================
+   8.8 Transform:調整後の内部状態に姓のインターフェースを適用
+   ============================================================ */
+
+function transformWithSurname(adjustedState, surnameInterface) {
+  if (!adjustedState) return null;
+  
+  // 姓は性質を変えない(インターフェース変換だけ)
+  // 出力時の「見え方の歪み・強調」を記録する
+  const interaction = computeNameSurnameInteraction(adjustedState, surnameInterface);
+  
+  return {
+    ...adjustedState,
+    surfaceInterface: surnameInterface,
+    interaction  // 名(動き) × 姓(出方) の関係性
+  };
+}
+
+// 名×姓 interaction 判定
+// レイ提言:一致(自然発現) / 衝突(内外ズレ) / 張力(状況依存)
+function computeNameSurnameInteraction(adjustedState, surnameInterface) {
+  if (!surnameInterface) return null;
+  
+  const labels = surnameInterface.labels;
+  const direction = adjustedState.direction;
+  const process = adjustedState.process;
+  
+  const observations = [];
+  
+  // direction × openness の関係
+  const opennessHigh = ["high", "very high"].includes(labels.openness);
+  const opennessLow = ["low", "very low"].includes(labels.openness);
+  
+  if (direction === "外向" && opennessHigh) {
+    observations.push({ type: "一致", note: "外向きの動きが、開放的な見え方でそのまま外に出る" });
+  } else if (direction === "外向" && opennessLow) {
+    observations.push({ type: "衝突", note: "外向きの動きが、閉じた見え方で外に出にくい" });
+  } else if (direction === "内向" && opennessHigh) {
+    observations.push({ type: "張力", note: "内向きの動きが、開放的な見え方で外に出される(状況依存)" });
+  } else if (direction === "内向" && opennessLow) {
+    observations.push({ type: "一致", note: "内向きの動きが、閉じた見え方でそのまま内に保たれる" });
+  }
+  
+  // 拡散 × visibility の関係
+  if (process.includes("拡散")) {
+    if (["high", "very high"].includes(labels.visibility)) {
+      observations.push({ type: "一致", note: "広げる動きが、目立って外に出る(派手に広がる)" });
+    } else if (["low", "very low"].includes(labels.visibility)) {
+      observations.push({ type: "衝突", note: "広げる動きが、目立たない見え方に押し込められる(内部で広がる)" });
+    }
+  }
+  
+  // 保持 × stability の関係
+  if (process.includes("保持")) {
+    if (["high", "very high"].includes(labels.stability)) {
+      observations.push({ type: "一致", note: "保つ動きが、安定した見え方で長く続く" });
+    }
+  }
+  
+  // 切断 × constraint の関係
+  if (process.includes("切断")) {
+    if (["high", "very high"].includes(labels.constraint)) {
+      observations.push({ type: "一致", note: "確定させる動きが、枠を持って出る" });
+    }
+  }
+  
+  return observations;
+}
+
+/* ============================================================
+   8.9 L3表現 v0.3(仮説提示型・3軸統合)
+        KOTONE = 仮説生成装置(レイ提言)
+   ============================================================ */
+
+// 名(エンジン)の人物像フレーズを生成
+function buildFirstNameNarrative(fn_L1, fn_L2, adjustedState) {
+  if (!fn_L2) return null;
+  
+  const dirData = KOTODAMA_L3_DIRECTION[fn_L2.direction];
+  if (!dirData) return null;
+  
+  const paragraphs = [];
+  
+  paragraphs.push(
+    `お名前から見えてくるあなたの自然な動き方は、${dirData.フレーズ_中}という傾向です。`
+  );
+  
+  const modifications = [];
+  for (const m of fn_L2.process) {
+    if (dirData.組合せ修飾[m]) {
+      modifications.push(dirData.組合せ修飾[m]);
+    }
+  }
+  if (modifications.length > 0) {
+    const list = modifications.slice(0, 3);
+    if (list.length === 1) {
+      paragraphs.push(`${list[0]}動き方が、内側で起きやすいでしょう。`);
+    } else {
+      paragraphs.push(
+        list.slice(0, -1).join("動き、") +
+        `動き、そして${list[list.length-1]}動き。これらが内側で組み合わさって、` +
+        `あなたの自然なリズムを作っています。`
+      );
+    }
+  }
+  
+  return paragraphs;
+}
+
+// 数秘(エネルギー条件)の補正記述
+function buildNumerologyAdjustNarrative(n_adj) {
+  if (!n_adj) return null;
+  
+  const paragraphs = [];
+  const phrases = [];
+  
+  if (n_adj.weight >= 1.5) phrases.push("動きが強く出やすい");
+  else if (n_adj.weight <= -0.5) phrases.push("動きが控えめに出やすい");
+  
+  if (n_adj.priority.length > 0) {
+    const priorityMap = {
+      "起点": "始める方向", "拡散": "広げる方向", "収束": "絞り込む方向",
+      "接続": "つなぐ方向", "切断": "確定させる方向", "保持": "守る方向"
+    };
+    const list = n_adj.priority.map(p => priorityMap[p] || p);
+    if (list.length === 1) {
+      phrases.push(`${list[0]}が前に出やすい`);
+    } else {
+      phrases.push(`${list.join("と")}が同時に動きやすい`);
+    }
+  }
+  
+  if (n_adj.persistence >= 1.5) phrases.push("動きが長く続きやすい");
+  else if (n_adj.persistence <= -0.5) phrases.push("動きに波が出やすい");
+  
+  if (n_adj.timing.length > 0) {
+    const timingMap = {
+      "immediate": "すぐに動き始める", "delayed": "じっくり時間をかけて動く",
+      "cyclic": "繰り返しながら動く", "early": "早くから動き始める"
+    };
+    const list = n_adj.timing.map(t => timingMap[t] || t);
+    if (list.length === 1) {
+      phrases.push(list[0]);
+    } else {
+      phrases.push(`${list.join("という側面と、")}という側面が同居する`);
+    }
+  }
+  
+  if (phrases.length === 0) {
+    return ["お誕生日からのエネルギー条件は、特に強い偏りなく、自然なバランスで働く傾向です。"];
+  }
+  
+  paragraphs.push(
+    `お誕生日から見えてくるエネルギーの条件としては、${phrases.join("、")}傾向があります。`
+  );
+  paragraphs.push(
+    `これは性格そのものではなく、あなたの動きが「どれくらいの強さで・どんなテンポで・どの方向に優先して」表に出やすいかという条件です。`
+  );
+  
+  return paragraphs;
+}
+
+// 姓(インターフェース)の出方記述
+function buildSurnameNarrative(ln_interface) {
+  if (!ln_interface) return null;
+  
+  const paragraphs = [];
+  const phrases = [];
+  const labels = ln_interface.labels;
+  
+  if (["high", "very high"].includes(labels.openness)) phrases.push("開放的に外へ出る");
+  else if (["low", "very low"].includes(labels.openness)) phrases.push("閉じた形で内に保たれる");
+  
+  if (["high", "very high"].includes(labels.scale)) phrases.push("大きなスケール感で出る");
+  if (["high", "very high"].includes(labels.stability)) phrases.push("安定した形で出る");
+  
+  if (["high", "very high"].includes(labels.visibility)) phrases.push("目立った見え方になる");
+  else if (["low", "very low"].includes(labels.visibility)) phrases.push("目立たない見え方になる");
+  
+  if (["high", "very high"].includes(labels.constraint)) phrases.push("形式や枠を伴って出る");
+  
+  if (phrases.length === 0) {
+    return ["お苗字からの出方は、特に強い特徴なく、自然な見え方になる傾向です。"];
+  }
+  
+  paragraphs.push(
+    `お苗字から見えてくるのは、あなたの内側の動きが「外にどう出るか」という見え方の特徴です。`
+  );
+  paragraphs.push(
+    `あなたの動きは、${phrases.join("、")}傾向があるかもしれません。`
+  );
+  paragraphs.push(
+    `お苗字は性格そのものを決めるものではなく、内側の動きが社会や周囲にどう現れるかを形作る、出力のフレームのような役割を持ちます。`
+  );
+  
+  return paragraphs;
+}
+
+// 名×姓 interaction の記述
+function buildInteractionNarrative(interactions) {
+  if (!interactions || interactions.length === 0) return null;
+  
+  const paragraphs = [];
+  const matches = interactions.filter(o => o.type === "一致");
+  const conflicts = interactions.filter(o => o.type === "衝突");
+  const tensions = interactions.filter(o => o.type === "張力");
+  
+  if (matches.length > 0) {
+    paragraphs.push(
+      `内側の動きと、外への出方が重なる部分があります。具体的には、${matches.map(m => m.note).join("。また、")}、という発現パターンが起きやすいかもしれません。`
+    );
+  }
+  
+  if (conflicts.length > 0) {
+    paragraphs.push(
+      `内側の動きと、外への出方がうまく噛み合わない部分もあります。${conflicts.map(c => c.note).join("。あるいは、")}、という形で内外がズレる場面があるかもしれません。もし「やりたいのにうまく出せない」という感覚があるとすれば、このズレが関係している可能性があります。`
+    );
+  }
+  
+  if (tensions.length > 0) {
+    paragraphs.push(
+      `状況によって発現が変わる部分もあります。${tensions.map(t => t.note).join("。また、")}、という形で、場面ごとに動きが変わって見えるかもしれません。`
+    );
+  }
+  
+  return paragraphs;
+}
+
+// 行動ヒント
+function buildActionHints(fn_L2, n_adj, interactions) {
+  if (!fn_L2) return null;
+  const hints = [];
+  
+  if (n_adj && n_adj.priority.length > 0) {
+    const p = n_adj.priority[0];
+    const hintMap = {
+      "起点": "「まず動き出す」を意識的に試してみてください。考える前に手を動かすと、本来の力が出やすいかもしれません。",
+      "拡散": "「外に広げる」を試してみてください。一人で抱え込むより、人に話す・公開する方が動きが活きやすいかもしれません。",
+      "収束": "「絞り込む」を試してみてください。広げるより、深めることに時間を使う方が、本来の力が出やすいかもしれません。",
+      "接続": "「人とつなぐ」を試してみてください。一人で完結させるより、誰かと関わる場面で動きが活きやすいかもしれません。",
+      "切断": "「区切りをつける」を試してみてください。曖昧なまま続けるより、明確に決め切る方が前に進みやすいかもしれません。",
+      "保持": "「守り続ける」を試してみてください。短期で結果を出すより、長く続けることで力が積み上がるタイプかもしれません。"
+    };
+    if (hintMap[p]) hints.push(hintMap[p]);
+  }
+  
+  if (interactions) {
+    const conflicts = interactions.filter(o => o.type === "衝突");
+    if (conflicts.length > 0) {
+      hints.push(
+        "もし内側の動きと、外への出方にズレを感じる場面があれば、それは「あなたが弱いから」ではなく「インターフェースの形」の話かもしれません。出し方を少し工夫することで、本来の動きが届きやすくなる可能性があります。"
+      );
+    }
+  }
+  
+  return hints.length > 0 ? hints : null;
+}
+
+/* ============================================================
+   8.9 L3表現 v0.4 — Haiku/Sonnet AI生成
+        プロンプト設計書 v0.1 / 出力設計指示書 v1.3 準拠
+        自己チェック基準4項目 + 言葉の自然さチェック(Haiku)
+   ============================================================ */
+
+function buildPromptInput(firstName, lastName, adjustedState, ln_interface, n_adj) {
+  const weightLabel = n_adj && n_adj.weight >= 2 ? "強い" : n_adj && n_adj.weight <= -1 ? "弱め" : "標準";
+  const persistLabel = n_adj && n_adj.persistence >= 2 ? "長続き" : n_adj && n_adj.persistence <= -1 ? "波あり" : "標準";
+  const timingMap = { immediate: "すぐに動き始める", delayed: "じっくり時間をかけて動く", cyclic: "繰り返しながら動く", early: "早めに動き始める" };
+  const timingStr = n_adj && n_adj.timing ? n_adj.timing.map(t => timingMap[t] || t).join(" + ") : "標準";
+  const interStr = adjustedState && adjustedState.interaction
+    ? adjustedState.interaction.map(o => `${o.type}: ${o.note}`).join("\n")
+    : "（姓未入力）";
+  const proc = adjustedState ? adjustedState.process.join(" → ") : "不明";
+  const dir  = adjustedState ? adjustedState.direction : "不明";
+  const mod  = adjustedState && adjustedState.modifier && adjustedState.modifier.length ? adjustedState.modifier.join(", ") : "なし";
+  const pri  = n_adj && n_adj.priority && n_adj.priority.length ? n_adj.priority.join(", ") : "なし";
+  const op   = ln_interface ? ln_interface.labels.openness   : "不明";
+  const vi   = ln_interface ? ln_interface.labels.visibility : "不明";
+  const sc   = ln_interface ? ln_interface.labels.scale      : "不明";
+  const st   = ln_interface ? ln_interface.labels.stability  : "不明";
+  const co   = ln_interface ? ln_interface.labels.constraint : "不明";
+  return `◆ 名(エンジン)
+動きの方向: ${dir}
+プロセス: ${proc}
+修飾: ${mod}
+数秘補正後の優先motion: ${pri}
+
+◆ 数秘(エネルギー条件)
+強度: ${weightLabel}
+持続性: ${persistLabel}
+タイミング: ${timingStr}
+
+◆ 姓(インターフェース)
+openness: ${op}  visibility: ${vi}  scale: ${sc}  stability: ${st}  constraint: ${co}
+
+◆ 名×姓 interaction
+${interStr}`;
+}
+
+const CONFIDENTIAL_RULE = `
+【絶対禁止】
+× 音名（ひらがな一文字の呼称）× 数字解説 × 構造用語（外向・内向・収束・拡散・起点・切断・保持・接続等）
+× システム説明（言霊・音霊・数秘術・L1・L2等） × 断定表現（「あなたは〜です」）
+【必須】「〜傾向があります」「〜可能性があります」「〜かもしれません」の仮説提示型
+「たとえば〜」を含む具体的行動シーン / 「お名前から」「お誕生日から」の枕詞`;
+
+function shouldUseSonnet(sectionIndex, haikuOutput, n_adj) {
+  if (sectionIndex === 0) return true;
+  if (!haikuOutput) return false;
+  if (!/たとえば|会議|誰か|場面|場合|〜時/.test(haikuOutput)) return true;
+  if (n_adj && n_adj.priority && n_adj.priority.length >= 2) return true;
+  if (n_adj && n_adj.timing && n_adj.timing.includes("immediate") && n_adj.timing.includes("delayed")) return true;
+  return false;
+}
+
+async function selfCheck(text, apiKey) {
+  const prompt = `以下の文章を読み、不自然な表現・意味ズレしている動詞や比喩があれば「NG: 箇所 → 修正案」の形で1行だけ返してください。なければ「OK」とだけ返してください。\n\n---\n${text}`;
+  const res = await callKotoneAPI(prompt, "claude-haiku-4-5-20251001", apiKey, 60);
+  return res.trim();
+}
+
+async function callKotoneAPI(prompt, model, apiKey, maxTokens) {
+  // 1.4と完全に同じヘッダー構成
+  // anthropic-dangerous-direct-browser-access: true を付与してCORSを通す
+  const headers = { "Content-Type": "application/json", "anthropic-dangerous-direct-browser-access": "true" };
+  if (apiKey) {
+    headers["x-api-key"] = apiKey;
+  }
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ model, max_tokens: maxTokens || 550, temperature: 0.5, messages: [{ role: "user", content: prompt }] })
+  });
+  if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error?.message || `HTTP ${resp.status}`); }
+  const data = await resp.json();
+  return data.content?.map(c => c.text || "").join("") || "";
+}
+
+function buildSectionPrompts(inputData) {
+  return [
+    { title: "キャッチコピー", note: "一撃で刺す・尖り優先", forceModel: "claude-sonnet-4-20250514", prompt:
+`あなたはKOTONEという自己理解診断アプリのコピーライターです。
+
+【タスク】入力データを読み、この人を一言で表すキャッチコピーを1つだけ作ってください。
+【条件】15〜25文字程度 / 体言止め or「〜な人」形式 / 抽象語禁止 / 具体的な行動・場面を含む / 安全にまとめない・違和感を残す
+【few-shot例】
+外向・拡散強・visibility高 → 「始める前に、もう3手先が見えている人」
+内向・収束強・timing:delayed → 「答えを持っているのに、最後まで言わない人」
+外向・接続・stability高 → 「誰とでも話せるのに、本音は誰にも言わない人」
+【入力データ】
+${inputData}
+${CONFIDENTIAL_RULE}
+キャッチコピーのみ出力。前置き不要。` },
+
+    { title: "現象サマリー", note: "行動ベースのあるある", prompt:
+`あなたはKOTONEという自己理解診断アプリの診断文ライターです。
+【タスク】入力データを読み、この人の「日常でよく起きる現象」を書いてください。
+【出力構造（厳守）】
+① 「〜な場面が多い人かもしれません」（1文）
+② 「たとえば、〜」で始まる具体シーン（2〜3文）・周囲のセリフを「」付きで1つ含める
+③ 「でも本人は、〜と感じていることがあるかもしれません」（1文）
+【入力データ】
+${inputData}
+${CONFIDENTIAL_RULE}
+構造①〜③のみ出力。前置き不要。` },
+
+    { title: "お名前から見えること", note: "動きの構造を行動で表現", prompt:
+`あなたはKOTONEという自己理解診断アプリの診断文ライターです。
+【タスク】お名前から導かれる「この人の自然な動き方」を書いてください。
+【出力構造（厳守）】
+① 「お名前から見えてくるのは、〜という動き方です」（1文・構造用語禁止）
+② 具体的な状況→行動→結果の流れ（2〜3文）
+③ 「この動き方は、〜という形で現れやすいかもしれません」（1文）
+【入力データ】
+${inputData}
+${CONFIDENTIAL_RULE}
+構造①〜③のみ出力。前置き不要。` },
+
+    { title: "お誕生日から見えること", note: "エネルギー条件・数字禁止", prompt:
+`あなたはKOTONEという自己理解診断アプリの診断文ライターです。
+【タスク】お誕生日から導かれる「この人のエネルギーの特性」を書いてください。性格ではなく「動きの出方」の説明です。
+【出力構造（厳守）】
+① 「お誕生日から見えてくるのは、〜というエネルギーの出方です」（1文・数字禁止）
+② 「お名前から来る動き方に、〜という条件が加わることで」（2文）
+③ 「その分、〜という面もあるかもしれません」（1文）
+※タイミングにimmediate+delayed両方あり → 「すぐ動き始めるのに、完成までは時間をかける」という矛盾として表現
+【入力データ】
+${inputData}
+${CONFIDENTIAL_RULE}
+構造①〜③のみ出力。前置き不要。` },
+
+    { title: "光と影", note: "強みとシャドーをセットで", prompt:
+`あなたはKOTONEという自己理解診断アプリの診断文ライターです。
+【タスク】この人の「強みが強く出すぎる時に何が起きるか」を書いてください。
+【出力構造（厳守）】
+■ 強みが活きる時
+あなたの「〜する力」は、〜（強みの源泉：なぜその力が生まれるかを1文）
+■ その力が強く出すぎると——
+〜（メカニズム：なぜそうなるかの因果を1〜2文）
+周りからは「〜」（具体的なセリフ形式）と見えています。
+結果として、〜可能性があります。
+【ルール】光と影はセット / 周囲のセリフは「」付き / 最後は「可能性があります」（「かもしれない」禁止）
+【入力データ】
+${inputData}
+${CONFIDENTIAL_RULE}
+出力構造のみ。前置き不要。` },
+
+    { title: "締め", note: "小さな実験提示・背中押し", prompt:
+`あなたはKOTONEという自己理解診断アプリの診断文ライターです。
+【タスク】この診断を読んだ人への「小さな次の一手」を書いてください。
+【出力構造（厳守）】
+① 「お名前とお誕生日が示しているのは、〜ということかもしれません」（まとめにならない・新しい角度）
+② 「まず〜を試してみてください」（具体的・今日からできる行動）
+　・「やりきる」「完走する」「最後まで持っていく」等の完遂表現を使う
+　・「届ける」「デリバリー」等の意味ズレ表現禁止
+③ 「それがあなたの〜かもしれません」（温かく背中を押す）
+【ルール】称賛禁止 / 抽象的励まし禁止 / 「やってみよう」と思える具体性
+【入力データ】
+${inputData}
+${CONFIDENTIAL_RULE}
+構造①〜③のみ出力。前置き不要。` }
+  ];
+}
+
+async function generateL3WithAI(firstName, lastName, fn_L1, fn_L2, adjustedState, output, ln_interface, n_L1, n_adj, containerEl, apiKey) {
+  const stateWithInteraction = adjustedState ? { ...adjustedState, interaction: output ? output.interaction : null } : null;
+  const inputData = buildPromptInput(firstName, lastName, stateWithInteraction, ln_interface, n_adj);
+  const sections = buildSectionPrompts(inputData);
+
+  containerEl.innerHTML = `<div class="l3-final">
+    <div class="l3-header">
+      <div class="label">FINAL OUTPUT · AI生成 · Haiku/Sonnet ハイブリッド</div>
+      <div class="title">あなたの構造の仮説</div>
+    </div>
+    ${sections.map((s, i) => `<div class="l3-ai-section" id="l3-sec-${i}">
+      <div class="section-title">${escapeHtml(s.title)}</div>
+      <div class="l3-loading" id="l3-loading-${i}">生成中...</div>
+    </div>`).join("")}
+    <p class="note" style="margin-top:24px; text-align:center; font-size:11px;">
+      ※KOTONE は仮説を提示するツールです。当てはまるかどうかは、ご自身の体感と照らし合わせてください。
+    </p>
+  </div>`;
+
+  // ①キャッチを先に生成（Sonnet）
+  await runSection(0, sections[0], apiKey, n_adj);
+  // ②〜⑥を順次生成
+  for (let i = 1; i < sections.length; i++) {
+    await runSection(i, sections[i], apiKey, n_adj);
+  }
+}
+
+async function runSection(idx, secDef, apiKey, n_adj) {
+  const loadEl = document.getElementById(`l3-loading-${idx}`);
+  const secEl  = document.getElementById(`l3-sec-${idx}`);
+  if (!loadEl || !secEl) return;
+  const haikuModel  = "claude-haiku-4-5-20251001";
+  const sonnetModel = "claude-sonnet-4-20250514";
+  const baseModel   = secDef.forceModel || haikuModel;
+
+  try {
+    loadEl.textContent = `生成中... (${secDef.forceModel ? "Sonnet" : "Haiku"})`;
+    let text  = await callKotoneAPI(secDef.prompt, baseModel, apiKey, 550);
+    let usedModel = secDef.forceModel ? "Sonnet" : "Haiku";
+
+    // Sonnetトリガー判定
+    if (!secDef.forceModel && shouldUseSonnet(idx, text, n_adj)) {
+      loadEl.textContent = "Sonnetで再生成中...";
+      text = await callKotoneAPI(secDef.prompt, sonnetModel, apiKey, 550);
+      usedModel = "Sonnet↑";
+    }
+
+    // 自己チェック（Haiku）
+    loadEl.textContent = "言葉チェック中...";
+    const checkResult = await selfCheck(text, apiKey);
+    const checkOk = checkResult.trim() === "OK";
+
+    if (!checkOk) {
+      loadEl.textContent = "修正中 (Sonnet)...";
+      const fixPrompt = secDef.prompt + `\n\n【前回の問題点】\n${checkResult}\n上記を修正して再生成してください。`;
+      text = await callKotoneAPI(fixPrompt, sonnetModel, apiKey, 550);
+      usedModel = "Sonnet修";
+    }
+
+    loadEl.remove();
+    const titleEl = secEl.querySelector(".section-title");
+    const checkBadge = checkOk
+      ? `<span class="l3-check-badge ok">✓ check</span>`
+      : `<span class="l3-check-badge retry">修正済</span>`;
+    titleEl.innerHTML = escapeHtml(secDef.title)
+      + `<span class="model-badge">${usedModel}</span>`
+      + checkBadge;
+    const pEl = document.createElement("p");
+    pEl.textContent = text;
+    secEl.appendChild(pEl);
+
+  } catch(e) {
+    loadEl.className = "";
+    loadEl.innerHTML = `<span style="color:var(--accent); font-size:12px;">エラー: ${escapeHtml(String(e.message || e))}</span>`;
+  }
+}
+
+function buildL3v3(fn_L1, fn_L2, adjustedState, output, ln_interface, n_L1, n_adj) {
+  return { _v04: true, fn_L1, fn_L2, adjustedState, output, ln_interface, n_L1, n_adj };
+}
+
+function renderL3v3(L3) {
+  if (!L3 || !L3._v04) return "";
+  return `<div id="l3-ai-container"></div>`;
+}
+
+// === 数秘L3マッピングデータ ===
+// 規約:
+//   本質・人物像_中・人物像_長 → 全て「〜人」「〜存在」で名詞句完結
+//   行動傾向 → 「〜する」常体・連用形(「傾向があります」を後ろに付けて完成)
+//   光と影 → 「〜こともある」常体(「でしょう」を後ろに付けて完成)
+//   役割語 → 「〜しながら」接続表現(後ろに語を続けない)
+//   力名   → 「〜する力」名詞句(「を併せ持つ」等で接続)
+//   キーワード → 単語のみ
+const NUMEROLOGY_L3 = {
+  "1": {
+    本質: "先頭に立って動き出す力を持つ人",
+    人物像_中: "ゼロから何かを始め、迷わず先へ進む推進力を持つ人",
+    人物像_長: "誰よりも先に動き出し、自ら道を切り拓いていく推進力を持つ人。決断が速く、周囲を引っ張っていくリーダー性を備えた人",
+    行動傾向: "思い立ったらすぐに動き出す",
+    光と影: "リーダーとして頼られる一方、ペースが速すぎて周囲を置き去りにしてしまうこともある",
+    役割語: "先頭に立ちながら",
+    力名: "先頭に立つ力",
+    キーワード: ["先頭", "起点", "決断", "リーダー"]
+  },
+  "2": {
+    本質: "人と人をつなぎ、支える調和の人",
+    人物像_中: "相手の気持ちを汲み取りながら、人と人をつなぐ役割を自然に担う人",
+    人物像_長: "細やかな共感力を持ち、人と人の間に立って関係を整える役割を担う人",
+    行動傾向: "相手の気持ちを察する感覚に優れている",
+    光と影: "周囲から信頼される一方、自分の本音を後回しにして疲れ果ててしまうこともある",
+    役割語: "人をつなぎながら",
+    力名: "人と人をつなぐ力",
+    キーワード: ["調和", "共感", "支援", "つなぎ役"]
+  },
+  "3": {
+    本質: "創造性と明るさで場を彩る表現者",
+    人物像_中: "湧き出るアイデアと表現力で、周囲を明るく動かしていく人",
+    人物像_長: "次々とアイデアが湧き、感性豊かに表現することで人を動かす力を持つ人",
+    行動傾向: "感じたことをそのまま表に出す",
+    光と影: "周囲を明るくする一方、感情の波が激しく、興味の対象も移ろいやすい面もある",
+    役割語: "創造を表現しながら",
+    力名: "創造して表現する力",
+    キーワード: ["創造", "表現", "明るさ", "ムードメーカー"]
+  },
+  "4": {
+    本質: "コツコツ積み上げる基盤づくりの人",
+    人物像_中: "丁寧に基盤を作り上げ、長く続けることで結果を出す人",
+    人物像_長: "派手さはなくとも、毎日の積み重ねを大切にし、確実な土台を作っていく堅実な人",
+    行動傾向: "計画を立てて着実に進める",
+    光と影: "信頼される基盤を作る一方、変化に対応しづらく、頑固に映ってしまうこともある",
+    役割語: "基盤を固めながら",
+    力名: "基盤を作り続ける力",
+    キーワード: ["堅実", "基盤", "継続", "安定"]
+  },
+  "5": {
+    本質: "枠を超えて変化を楽しむ自由人",
+    人物像_中: "枠にとらわれず、好奇心の赴くまま新しい世界に飛び込んでいく人",
+    人物像_長: "変化を恐れず、むしろ変化の中でこそ生き生きと動ける人",
+    行動傾向: "新しいものに最初に飛びつく",
+    光と影: "新しい風を吹き込む一方、定着しづらく、約束を軽く扱ってしまう面もある",
+    役割語: "自由に動きながら",
+    力名: "自由に変化していく力",
+    キーワード: ["自由", "変化", "好奇心", "冒険"]
+  },
+  "6": {
+    本質: "愛と美意識で全体を整える調和者",
+    人物像_中: "深い思いやりを持ち、周囲との調和を大切にしながら美しい関係を築く人",
+    人物像_長: "誰かのために動くこと、美しいものに触れることに喜びを感じる人",
+    行動傾向: "相手のために動くことを優先する",
+    光と影: "深い愛情で周囲を包む一方、世話を焼きすぎたり、理想を押し付けてしまうこともある",
+    役割語: "愛で包みながら",
+    力名: "愛で全体を整える力",
+    キーワード: ["愛", "調和", "美", "思いやり"]
+  },
+  "7": {
+    本質: "独自の世界を究める探求者",
+    人物像_中: "周囲と一線を画す独自のスタイルを持ち、深く掘り下げて本質に迫る人",
+    人物像_長: "誰にも真似できない独自の世界観を持ち、一人で物事を完結させる力がある人",
+    行動傾向: "一人で深く考え抜いてから動く",
+    光と影: "独自性で一目置かれる一方、周囲と距離が開きすぎて孤独に陥ることもある",
+    役割語: "独自に究めながら",
+    力名: "独自に究める力",
+    キーワード: ["探求", "独自", "完成", "孤高"]
+  },
+  "8": {
+    本質: "現実を動かし豊かさを生み出す人",
+    人物像_中: "大きなエネルギーで現実を動かし、物事を豊かに拡大していく実行力の人",
+    人物像_長: "スケール感のある発想と強い実行力を持ち、現実世界で結果を出していく人",
+    行動傾向: "目標を大きく持って動く",
+    光と影: "大きな成果を生む一方、力が暴走するとコントロール欲や物質偏重に陥ることもある",
+    役割語: "現実を動かしながら",
+    力名: "現実を動かす力",
+    キーワード: ["豊かさ", "拡大", "情熱", "現実化"]
+  },
+  "9": {
+    本質: "全体を見渡し智慧でまとめる賢者",
+    人物像_中: "大きな視野で全体を見渡し、智慧で物事をまとめていく人",
+    人物像_長: "個別の主張よりも全体の調和を優先し、智慧で物事を統合していく賢者の素質を持つ人",
+    行動傾向: "全体を俯瞰してから動く",
+    光と影: "全体を支える賢者として頼られる一方、自分を後回しにしすぎて埋没してしまうこともある",
+    役割語: "全体をまとめながら",
+    力名: "全体をまとめる力",
+    キーワード: ["智慧", "統合", "賢者", "アンカー"]
+  },
+  "11": {
+    本質: "直感とひらめきを瞬時に捉える人",
+    人物像_中: "瞬時にひらめきを得て答えを導き出す、感性と知性を統合した人",
+    人物像_長: "素晴らしいひらめきやインスピレーションを得て、一瞬で答えを導き出せる天性の才能を持つ人",
+    行動傾向: "理屈より先に直感が動く",
+    光と影: "鋭い直感で頼られる一方、感受性の強さが消耗を招き、繊細さに苦しむこともある",
+    役割語: "直感を働かせながら",
+    力名: "直感とひらめきの力",
+    キーワード: ["直感", "ひらめき", "賢者", "感性"]
+  },
+  "22": {
+    本質: "大きな構造を現実化するカリスマ",
+    人物像_中: "壮大なビジョンを描き、それを現実の形にしていく強い実行力の人",
+    人物像_長: "小さなことにこだわらず、大きなスケールで物事を捉え、ビジョンを現実化する強い力を持つカリスマ",
+    行動傾向: "大きなビジョンから逆算して動く",
+    光と影: "大きな構造を現実化する力で頼られる一方、理想の大きさに自分自身が押し潰されることもある",
+    役割語: "大構造を作りながら",
+    力名: "大きな構造を現実化する力",
+    キーワード: ["大構造", "ビジョン", "カリスマ", "現実化"]
+  },
+  "33": {
+    本質: "無条件の愛で全てを包む奉仕者",
+    人物像_中: "見返りを求めず、深い愛で全てを包み込む透明な奉仕者",
+    人物像_長: "細かな計算を超えた次元で動く、無条件の愛と深い使命感を持つ人",
+    行動傾向: "見返りを求めずに動く",
+    光と影: "深い愛で周囲を包む一方、自己犠牲に陥り、自分自身が消耗してしまうこともある",
+    役割語: "無条件に包みながら",
+    力名: "無条件の愛で包む力",
+    キーワード: ["無条件の愛", "奉仕", "包容", "菩薩"]
+  }
+};
+
+// === 言霊L3 direction別テンプレート ===
+const KOTODAMA_L3_DIRECTION = {
+  "外向": {
+    本質: "外に向かって動き出す力を持つ人",
+    フレーズ_中: "思いを外に向けて動かしていく人",
+    フレーズ_長: "内に留まることなく、外の世界に向けて自分を表現していく行動の人",
+    キーワード: ["行動", "発信", "推進", "開拓"],
+    組合せ修飾: {
+      "拡散": "広く影響を及ぼす",
+      "収束": "目標を絞って突き進む",
+      "接続": "外に出ながら関係を作る",
+      "切断": "外に向かって決断する",
+      "保持": "持っているものを外に向けて守る"
+    }
+  },
+  "内向": {
+    本質: "内側で深めて動く力を持つ人",
+    フレーズ_中: "内側で考え、整えてから動く人",
+    フレーズ_長: "外の刺激より内側の世界を大切にし、深く考えてから動いていく人",
+    キーワード: ["思索", "内省", "蓄積", "探究"],
+    組合せ修飾: {
+      "収束": "内側で本質を絞り込む",
+      "保持": "内に抱え続ける",
+      "切断": "信念で線を引く",
+      "接続": "深いところで人とつながる",
+      "拡散": "内側のものを外に滲ませる"
+    }
+  },
+  "双方向": {
+    本質: "内と外を行き来できる人",
+    フレーズ_中: "状況に応じて立場を変えられる柔軟な人",
+    フレーズ_長: "一つの立場に固定されず、状況や相手に応じて自然に役割を変えていく人",
+    キーワード: ["媒介", "適応", "柔軟", "接続"],
+    組合せ修飾: {
+      "接続": "人と人をつなぐ橋になる",
+      "拡散": "広く伝える伝達者になる",
+      "切断": "違いを見極めて選別する",
+      "収束": "本質を絞り込んで翻訳する",
+      "保持": "両方の立場を抱える"
+    }
+  },
+  "中立": {
+    本質: "全体を包み静かに整える人",
+    フレーズ_中: "全体を見渡して場を整える人",
+    フレーズ_長: "突出することなく、全体のバランスを見ながら静かに場を整えていく人",
+    キーワード: ["統合", "包容", "俯瞰", "安定"],
+    組合せ修飾: {
+      "保持": "全体を抱えて支える",
+      "収束": "全体をまとめる",
+      "接続": "場の全員をつなぐ",
+      "切断": "必要なものとそうでないものを見分ける",
+      "拡散": "全体に影響を広げる"
+    }
+  }
+};
+
+// === シャドー変換テーブル ===
+const SHADOW_TABLE = [
+  {
+    pattern: { direction: "内向", motion: ["収束", "保持"], modifier: ["蓄積"] },
+    typical: "「正しさ」を前提に話を進めてしまうと、すり合わせよりも押し切る形になってしまうことがあるでしょう",
+    impression: "周囲から「話が通じない」と感じられる場面が出やすい面もあります"
+  },
+  {
+    pattern: { direction: "中立", motion: ["保持", "収束"], modifier: ["蓄積"] },
+    typical: "全体を抱えすぎる傾向があるため、本音や違和感を内側に溜め込みやすく、ある日突然、表面の穏やかさが崩れることも",
+    impression: "周囲は「急にどうした」と感じやすく、その時には既に、内側で長く積もったものが限界に達している場合があります"
+  },
+  {
+    pattern: { direction: "双方向", motion: ["接続", "切断"], modifier: ["媒介"] },
+    typical: "論理を優先するあまり、感情を切り離して結論を急いでしまう傾向も",
+    impression: "議論が「対話」ではなく「評価」になってしまうと、相手は「冷たい」と感じたり、正論で温度を下げられているように受け取ってしまうことがあるでしょう"
+  },
+  {
+    pattern: { direction: "外向", motion: ["拡散"], modifier: ["瞬発", "反復"] },
+    typical: "思ったことをそのまま口に出してしまう傾向があり",
+    impression: "悪気はなくとも、相手にきつく感じさせてしまうことがあるでしょう"
+  },
+  {
+    pattern: { direction: "外向", motion: ["起点", "切断"], modifier: [] },
+    typical: "自分の判断を強く押し進める傾向があり、反対意見を聞かずに決断してしまうことも",
+    impression: "場を支配しようとする姿勢が、周囲には「強引」「孤高」と映ることがあります"
+  },
+  {
+    pattern: { direction: "中立", motion: ["保持", "接続"], modifier: ["持続"] },
+    typical: "強い基準を内側に持ち、それに合わない人を即座に判定してしまうことも",
+    impression: "柔らかな表情の裏で線引きが厳しく、「怖い人」と感じられることがあるでしょう"
+  }
+];
+
+// === 50音マスター素材(主要音のみ抜粋・補強用) ===
+const SOUND_MATERIAL = {
+  "あ": "創造性と求心力",
+  "い": "細やかな感受性と本質を見抜く力",
+  "う": "包み込む受容性",
+  "え": "違いを見極める識別力",
+  "お": "全体を捉える統合力",
+  "か": "瞬発的な行動力",
+  "き": "鋭い判断力と決断力",
+  "く": "内側で深める醸成力",
+  "け": "気配りと察する力",
+  "こ": "責任感と誠実さ",
+  "さ": "整理して筋道を立てる分析力",
+  "し": "信念を曲げない一貫性",
+  "す": "摩擦なく流れを通す調整力",
+  "せ": "正しさへのこだわり",
+  "そ": "陰で支える献身性",
+  "た": "確定させる安定性",
+  "ち": "鋭敏な多面性",
+  "つ": "圧を溜めて貫く突破力",
+  "て": "工夫と改善の手腕",
+  "と": "枠を破る革新性",
+  "な": "柔らかく場に溶け込む調和力",
+  "に": "細やかな比較・分類の力",
+  "ぬ": "深く潜って極める専門性",
+  "ね": "根を張る継続力",
+  "の": "つなぐ自由さ",
+  "は": "波のように場を作るリズム",
+  "ひ": "周囲を照らす表現力",
+  "ふ": "自然体の清涼感",
+  "へ": "方向を指し示す指向力",
+  "ほ": "温かく包む受容性",
+  "ま": "円満にまとめる調和力",
+  "み": "観察眼と美意識",
+  "む": "内側で反芻する深思考",
+  "め": "明確な指標を示す力",
+  "も": "大切なものを保ち続ける継続性",
+  "や": "目標へ向かう達成力",
+  "ゆ": "しなやかな弾力性",
+  "よ": "広い視野と拡大性",
+  "ら": "外に向けて流れを作る発信力",
+  "り": "秩序を作る整理力",
+  "る": "他にはない独自性",
+  "れ": "選別する判断力",
+  "ろ": "燃え続ける情熱",
+  "わ": "関係性のインフラを作る接続力"
+};
+
+// === 数秘L3結論文の組み立て ===
+function buildNumerologyL3(n_L1) {
+  // 主軸数字を決定:weight が最大の数字、同じならマスター数優先、それ以外は数値順
+  const entries = Object.entries(n_L1.numbers);
+  if (entries.length === 0) return null;
+  
+  entries.sort((a, b) => {
+    const wDiff = b[1].weight - a[1].weight;
+    if (wDiff !== 0) return wDiff;
+    const aMaster = ["11", "22", "33"].includes(a[0]);
+    const bMaster = ["11", "22", "33"].includes(b[0]);
+    if (aMaster && !bMaster) return -1;
+    if (!aMaster && bMaster) return 1;
+    return parseInt(a[0]) - parseInt(b[0]);
+  });
+  
+  const main = entries[0];
+  const others = entries.slice(1);
+  const mainNum = main[0];
+  const mainData = NUMEROLOGY_L3[mainNum];
+  if (!mainData) return null;
+  
+  const paragraphs = [];
+  
+  // 第1段落:本質
+  paragraphs.push(`お誕生日から導かれるあなたは、${mainData.人物像_長}です。`);
+  
+  // 第2段落:重複強調(あれば)
+  if (main[1].weight >= 2.0) {
+    paragraphs.push(
+      `特に${mainData.力名}が二重に重なって表れており、` +
+      `${mainData.行動傾向}傾向が際立って強く出ます。`
+    );
+  }
+  
+  // 第3段落:組み合わせ
+  if (others.length > 0) {
+    const otherMain = others[0];
+    const otherData = NUMEROLOGY_L3[otherMain[0]];
+    if (otherData) {
+      const mainDir = NUMEROLOGY_L1[mainNum] && NUMEROLOGY_L1[mainNum].direction;
+      const otherDir = NUMEROLOGY_L1[otherMain[0]] && NUMEROLOGY_L1[otherMain[0]].direction;
+      const isConflict = (mainDir === "外向" && otherDir === "内向") ||
+                         (mainDir === "内向" && otherDir === "外向");
+      
+      if (isConflict) {
+        paragraphs.push(
+          `${mainData.役割語}、同時に${otherData.役割語}という、` +
+          `一見矛盾する二つの力を併せ持っています。` +
+          `この内的なせめぎ合いが、あなたを動かす駆動力となるでしょう。`
+        );
+      } else {
+        paragraphs.push(
+          `加えて${otherData.力名}も併せ持っており、` +
+          `${otherData.キーワード[0]}と${mainData.キーワード[0]}が組み合わさることで、` +
+          `独自の存在感を作り出します。`
+        );
+      }
+    }
+  }
+  
+  // マスター数の追加レイヤー(主軸でない場合のみ)
+  const masterEntry = entries.find(e => ["11", "22", "33"].includes(e[0]));
+  if (masterEntry && masterEntry[0] !== mainNum) {
+    const masterData = NUMEROLOGY_L3[masterEntry[0]];
+    paragraphs.push(
+      `さらに${masterData.キーワード[0]}が加わることで、` +
+      `${masterData.人物像_中}としての側面も持ち合わせています。`
+    );
+  }
+  
+  // 第4段落:行動傾向(常体素材を「〜傾向があります」で丁寧化)
+  paragraphs.push(`${mainData.行動傾向}傾向があります。`);
+  
+  // 第5段落:光と影(常体素材を「〜こともあるでしょう」で丁寧化)
+  paragraphs.push(`ただし、${mainData.光と影}でしょう。`);
+  
+  return paragraphs;
+}
+
+// === 言霊L3結論文の組み立て ===
+function buildKotodamaL3(k_L1, k_L2) {
+  if (!k_L1 || !k_L2) return null;
+  
+  const dir = k_L2.direction;
+  const dirData = KOTODAMA_L3_DIRECTION[dir];
+  if (!dirData) return null;
+  
+  const paragraphs = [];
+  
+  // 第1段落:本質
+  paragraphs.push(`お名前から導かれるあなたは、${dirData.フレーズ_長}です。`);
+  
+  // 第2段落:processの組合せ修飾
+  const modifications = [];
+  for (const m of k_L2.process) {
+    if (dirData.組合せ修飾[m]) {
+      modifications.push(dirData.組合せ修飾[m]);
+    }
+  }
+  if (modifications.length > 0) {
+    const list = modifications.slice(0, 3); // 最大3つ
+    if (list.length === 1) {
+      paragraphs.push(`${list[0]}力を持っています。`);
+    } else if (list.length === 2) {
+      paragraphs.push(`${list[0]}力と、${list[1]}力を併せ持っています。`);
+    } else {
+      paragraphs.push(`${list[0]}力、${list[1]}力、そして${list[2]}力を併せ持っています。`);
+    }
+  }
+  
+  // 第3段落:50音マスター素材を補強的に注入
+  // 採用音:重複していない最初の3音まで
+  const seenSounds = new Set();
+  const uniqueSounds = [];
+  for (const s of k_L1.sounds) {
+    const ch = DAKUON_MAP[s] || s;
+    if (!seenSounds.has(ch) && SOUND_MATERIAL[ch]) {
+      seenSounds.add(ch);
+      uniqueSounds.push(ch);
+    }
+    if (uniqueSounds.length >= 3) break;
+  }
+  if (uniqueSounds.length > 0) {
+    const materials = uniqueSounds.map(s => SOUND_MATERIAL[s]);
+    let sentence;
+    if (materials.length === 1) {
+      sentence = `${materials[0]}が、その軸を支えています。`;
+    } else if (materials.length === 2) {
+      sentence = `${materials[0]}と、${materials[1]}。これらが組み合わさって、独自の人物像を形作っています。`;
+    } else {
+      sentence = `${materials[0]}、${materials[1]}、${materials[2]}。これらが組み合わさって、独自の人物像を形作っています。`;
+    }
+    paragraphs.push(sentence);
+  }
+  
+  // 第4段落:シャドー(光と影)
+  const shadow = matchShadow(k_L2);
+  if (shadow) {
+    paragraphs.push(`ただし、${shadow.typical}でしょう。${shadow.impression}でしょう。`);
+  }
+  
+  return paragraphs;
+}
+
+// シャドーマッチング
+function matchShadow(L2) {
+  let bestMatch = null;
+  let bestScore = 0;
+  
+  for (const entry of SHADOW_TABLE) {
+    const p = entry.pattern;
+    let score = 0;
+    let valid = true;
+    
+    // direction一致
+    if (p.direction && L2.direction === p.direction) {
+      score += 3;
+    } else if (p.direction) {
+      valid = false;
+    }
+    
+    // motion部分一致
+    if (p.motion) {
+      let motionMatch = 0;
+      for (const m of p.motion) {
+        if (L2.process.includes(m)) motionMatch++;
+      }
+      if (motionMatch === p.motion.length) score += 2;
+      else if (motionMatch > 0) score += 1;
+      else valid = false;
+    }
+    
+    // modifier部分一致
+    if (p.modifier && p.modifier.length > 0) {
+      for (const mod of p.modifier) {
+        if (L2.modifier.includes(mod)) score += 1;
+      }
+    }
+    
+    if (valid && score > bestScore) {
+      bestScore = score;
+      bestMatch = entry;
+    }
+  }
+  
+  return bestMatch;
+}
+
+// === 統合セクションの組み立て ===
+function buildIntegrationL3(intersection) {
+  if (!intersection) return null;
+  
+  const paragraphs = [];
+  
+  // common(共通強化)
+  if (intersection.common && intersection.common.length > 0) {
+    paragraphs.push(
+      `お名前から導かれる本質と、お誕生日から見えてくる性質には、` +
+      `重なり合う中心軸があります。これは、あなたが特に持って生まれた、` +
+      `揺るぎない内なる力です。`
+    );
+  }
+  
+  // complex(包含・動的×静的)
+  if (intersection.complex && intersection.complex.length > 0) {
+    paragraphs.push(
+      `名前と誕生日が示す性質は、単純に重なるのではなく、` +
+      `異なる層として同居しています。状況に応じて使い分けられる、` +
+      `多層的な構造を持っているのが、あなたの特徴です。`
+    );
+  }
+  
+  // conflict(矛盾)
+  if (intersection.conflict && intersection.conflict.length > 0) {
+    paragraphs.push(
+      `名前と誕生日が示す性質には、一見矛盾する要素も含まれています。` +
+      `この内的なせめぎ合いを抱えていることこそが、あなたを動かしていく駆動力。` +
+      `葛藤の中にこそ、あなたの本質が現れてきます。`
+    );
+  }
+  
+  // modifier_conflict(テンポ張力)
+  if (intersection.modifier_conflict && intersection.modifier_conflict.length > 0) {
+    paragraphs.push(
+      `行動のテンポにも独特のリズムを持っており、` +
+      `溜め込んでから一気に動く、あるいは瞬発と持続が交互に現れるなど、` +
+      `波のあるリズムで動いていく人です。`
+    );
+  }
+  
+  if (paragraphs.length === 0) {
+    paragraphs.push(
+      `お名前から導かれる本質と、お誕生日から見えてくる性質は、` +
+      `それぞれ独立した側面として、あなたの人物像を立体的に形作っています。`
+    );
+  }
+  
+  return paragraphs;
+}
+
+// === 統合「光と影」セクション ===
+function buildShadowL3(k_L2, n_L1, intersection) {
+  const paragraphs = [];
+  
+  // 言霊側のシャドー
+  if (k_L2) {
+    const shadow = matchShadow(k_L2);
+    if (shadow) {
+      paragraphs.push(`${shadow.typical}でしょう。${shadow.impression}でしょう。`);
+    }
+  }
+  
+  // 数秘側の崩れ方(主軸の数字から)
+  if (n_L1 && n_L1.numbers) {
+    const entries = Object.entries(n_L1.numbers);
+    entries.sort((a, b) => b[1].weight - a[1].weight);
+    if (entries.length > 0) {
+      const mainNum = entries[0][0];
+      const mainData = NUMEROLOGY_L3[mainNum];
+      if (mainData) {
+        paragraphs.push(`また、${mainData.光と影}でしょう。`);
+      }
+    }
+  }
+  
+  if (paragraphs.length === 0) {
+    paragraphs.push("光と影の構造は、入力情報からは読み取れませんでした。");
+  }
+  
+  return paragraphs;
+}
+
+// === キャッチコピー生成プロンプト(Haiku呼び出し用・現状はプロンプト例の表示のみ) ===
+function buildCatchPromptExample(k_L2, n_L1, intersection) {
+  const keywords = [];
+  
+  if (k_L2 && KOTODAMA_L3_DIRECTION[k_L2.direction]) {
+    keywords.push(...KOTODAMA_L3_DIRECTION[k_L2.direction].キーワード.slice(0, 2));
+  }
+  
+  if (n_L1 && n_L1.numbers) {
+    const entries = Object.entries(n_L1.numbers);
+    entries.sort((a, b) => b[1].weight - a[1].weight);
+    for (const [num, _] of entries.slice(0, 2)) {
+      const d = NUMEROLOGY_L3[num];
+      if (d) keywords.push(...d.キーワード.slice(0, 2));
+    }
+  }
+  
+  // ユニーク化
+  const unique = [...new Set(keywords)];
+  
+  return {
+    keywords: unique,
+    prompt: `以下のキーワードから、その人を表す20-30字のキャッチコピーを1つ生成してください。\n\nキーワード:${unique.join("、")}\n\n条件:\n・1文で完結\n・体言止め可\n・占い・スピリチュアル臭を抑える\n・キーワードを1-2個取り入れる\n・現代的で読みやすい言葉遣い`
+  };
+}
+
+// === L3全体を組み立てる ===
+function buildL3(k_L1, k_L2, n_L1, intersection) {
+  const sections = {};
+  
+  // セクション1:お名前から(言霊)
+  if (k_L2) {
+    sections.kotodama = buildKotodamaL3(k_L1, k_L2);
+  }
+  
+  // セクション2:お誕生日から(数秘)
+  if (n_L1) {
+    sections.numerology = buildNumerologyL3(n_L1);
+  }
+  
+  // セクション3:統合
+  if (intersection) {
+    sections.integration = buildIntegrationL3(intersection);
+  }
+  
+  // セクション4:光と影
+  sections.shadow = buildShadowL3(k_L2, n_L1, intersection);
+  
+  // セクション5:キャッチコピー(プロンプト例のみ)
+  sections.catch_prompt = buildCatchPromptExample(k_L2, n_L1, intersection);
+  
+  return sections;
+}
+
+// === L3レンダリング ===
+function renderL3(L3) {
+  if (!L3) return "";
+  
+  const renderSection = (title, paragraphs) => {
+    if (!paragraphs || paragraphs.length === 0) return "";
+    return `
+      <div class="l3-section">
+        <div class="section-title">${title}</div>
+        ${paragraphs.map(p => `<p>${escapeHtml(p)}</p>`).join("")}
+      </div>
+    `;
+  };
+  
+  let html = `<div class="l3-final">
+    <div class="l3-header">
+      <div class="label">FINAL OUTPUT</div>
+      <div class="title">あなたの診断結果</div>
+    </div>`;
+  
+  if (L3.kotodama) html += renderSection("お名前から導かれるあなた", L3.kotodama);
+  if (L3.numerology) html += renderSection("お誕生日から導かれるあなた", L3.numerology);
+  if (L3.integration) html += renderSection("二つを重ねて見えてくる、あなたの人物像", L3.integration);
+  if (L3.shadow) html += renderSection("光と影", L3.shadow);
+  
+  // キャッチコピー(プロンプト例)
+  if (L3.catch_prompt) {
+    html += `
+      <div class="l3-catch">
+        <div class="catch-label">CATCH COPY (LLM呼び出し)</div>
+        <div class="catch-text">[ Haiku呼び出しでここにキャッチが入る ]</div>
+        <div class="catch-note">本番ではバックエンドからHaikuを呼び出して生成。今回はプロンプト例のみ。</div>
+      </div>
+      <details style="margin-top:16px">
+        <summary>キャッチ生成のプロンプト例(Haiku呼び出し用)</summary>
+        <pre>${escapeHtml(L3.catch_prompt.prompt)}</pre>
+        <p class="note">抽出キーワード:${L3.catch_prompt.keywords.join("、")}</p>
+      </details>
+    `;
+  }
+  
+  html += "</div>";
+  return html;
+}
+
+/* ============================================================
+   10. イベントバインド
+   ============================================================ */
+
+document.getElementById("run").addEventListener("click", run);
+
+document.querySelectorAll(".preset").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.getElementById("lastName").value = btn.dataset.ln || "";
+    document.getElementById("firstName").value = btn.dataset.fn || "";
+    document.getElementById("year").value = btn.dataset.y;
+    document.getElementById("month").value = btn.dataset.m;
+    document.getElementById("day").value = btn.dataset.d;
+    run();
+  });
+});
+
+// Enterキーで実行
+document.querySelectorAll(".field input").forEach(inp => {
+  inp.addEventListener("keydown", e => {
+    if (e.key === "Enter") run();
+  });
+});
+
+// 初期表示:プリセット④を実行
+window.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("lastName").value = "おおの";
+  document.getElementById("firstName").value = "あきお";
+  document.getElementById("year").value = "1967";
+  document.getElementById("month").value = "11";
+  document.getElementById("day").value = "19";
+  run();
+});
+
+</script>
+</body>
+</html>
