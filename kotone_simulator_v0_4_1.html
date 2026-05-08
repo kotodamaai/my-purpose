@@ -1438,10 +1438,13 @@ function run() {
   
   // ============ L3-final: 表現生成(ユーザー出力) ============
   const apiKey = document.getElementById("apiKey").value.trim();
+  // GitHub Pages上かどうかの判定（location.hostnameで判定）
+  const isGitHubPages = location.hostname.includes("github.io");
+  const canCallAI = apiKey || isGitHubPages;
   const L3_final = buildL3v3(fn_L1, fn_L2, adjustedState, output, ln_interface, n_L1, n_adj);
 
-  if (L3_final && apiKey) {
-    // APIキーあり → AI生成
+  if (L3_final && canCallAI) {
+    // AI生成（GitHub Pages上 or APIキーあり）
     html += `
       <div class="layer">
         <div class="layer-header">
@@ -1453,17 +1456,17 @@ function run() {
         </div>
       </div>
     `;
-  } else if (L3_final && !apiKey) {
-    // APIキーなし → テンプレート表示 + 案内
+  } else if (L3_final && !canCallAI) {
+    // APIキーなし・ローカル環境 → 案内表示
     html += `
       <div class="layer">
         <div class="layer-header">
           <span>LAYER 3 · 表現層</span>
-          <span class="badge">APIキー未入力 → テンプレート表示</span>
+          <span class="badge">APIキー未入力</span>
         </div>
         <div class="layer-body">
           <p class="note" style="padding:12px; border:1px dashed var(--accent-3); font-size:13px; color:var(--ink-2);">
-            🔑 ローカルで開いている場合は、上部のAPIキー欄に Anthropic APIキーを入力してください。GitHub Pages 上では入力不要です。
+            🔑 ローカルで開く場合は、上部のAPIキー欄に Anthropic APIキーを入力してください。
           </p>
         </div>
       </div>
@@ -1489,8 +1492,8 @@ function run() {
 
   out.innerHTML = html;
 
-  // APIキーあり → AI生成を非同期起動
-  if (L3_final && apiKey) {
+  // AI生成を非同期起動（GitHub Pages上 or APIキーあり）
+  if (L3_final && canCallAI) {
     const container = document.getElementById("l3-ai-container");
     if (container) {
       generateL3WithAI(
