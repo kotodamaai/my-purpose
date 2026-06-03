@@ -1934,7 +1934,7 @@ async function callProxy(prompt, model, maxTokens) {
 
 function buildSectionPrompts(inputData) {
   return [
-    { title:"キャッチコピー", forceModel:"claude-sonnet-4-20250514", prompt:`あなたはKOTONEという自己理解診断アプリのコピーライターです。
+    { title:"キャッチコピー", forceModel:"claude-sonnet-4-5", prompt:`あなたはKOTONEという自己理解診断アプリのコピーライターです。
 【タスク】入力データを読み、この人を一言で表すキャッチコピーを1つだけ作ってください。
 【条件】15〜25文字程度 / 体言止め or「〜な人」形式 / 抽象語禁止 / 具体的な行動・場面を含む / 安全にまとめない・違和感を残す
 【few-shot例】
@@ -2030,7 +2030,7 @@ async function runSection(idx, secDef, n_adj) {
   const secEl  = document.getElementById(`l3-sec-${idx}`);
   if (!loadEl || !secEl) return;
   const haiku  = "claude-haiku-4-5-20251001";
-  const sonnet = "claude-sonnet-4-20250514";
+  const sonnet = "claude-sonnet-4-5";
   const base   = secDef.forceModel || haiku;
   try {
     loadEl.textContent = `生成中... (${secDef.forceModel ? "Sonnet" : "Haiku"})`;
