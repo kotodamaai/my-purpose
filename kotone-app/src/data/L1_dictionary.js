@@ -57,30 +57,59 @@ export const DAKUON_MAP = {
   "ぱ":"は","ぴ":"ひ","ぷ":"ふ","ぺ":"へ","ぽ":"ほ",
 };
 
-// 姓インターフェース辞書 v0.1
+// 姓インターフェース辞書 v0.2
+// ※「き」「く」「け」「に」「ぬ」「ね」「ひ」「ふ」「へ」「ゆ」「よ」「り」「る」「れ」「ん」を追加（要検証）
+// 「き」：「い」系の内向収束音・切断も持つ → visibility低め・constraint強め（ささき等の姓で外向き抑制に働く）
 export const SURNAME_INTERFACE = {
+  // 母音
   "あ": { openness: +2, scale: +1 },
   "い": { visibility: -1, constraint: +1 },
   "う": { openness: -2, scale: -1 },
   "え": { openness: +1, visibility: +1 },
   "お": { openness: +2, visibility: +1 },
-  "し": { constraint: +1, stability: +1 },
-  "た": { scale: +1, constraint: +1 },
-  "な": { stability: +2, openness: +1 },
-  "の": { openness: +1, stability: +1 },
-  "ら": { openness: +1, visibility: +1 },
-  "わ": { openness: +1, stability: +1 },
-  "む": { openness: -2, visibility: -1 },
+  // か行
   "か": { scale: +1, visibility: +1 },
-  "て": { constraint: +1, visibility: +1 },
-  "み": { visibility: +1, stability: +1 },
-  "と": { scale: +1, openness: +1 },
+  "き": { visibility: -1, constraint: +2 },   // 要検証: い系+切断 → 内に絞る・抑制
+  "く": { openness: -1, stability: +1 },       // 要検証: 内向・保持 → 閉じて安定
+  "け": { openness: +1, constraint: +1 },      // 要検証: 双方向・切断+接続
   "こ": { stability: +2, constraint: +1 },
+  // さ行
   "さ": { openness: +1, visibility: +1 },
+  "し": { constraint: +1, stability: +1 },
+  // た行
+  "た": { scale: +1, constraint: +1 },
+  "て": { constraint: +1, visibility: +1 },
+  "と": { scale: +1, openness: +1 },
   "つ": { scale: +1, constraint: +1 },
+  // な行
+  "な": { stability: +2, openness: +1 },
+  "に": { stability: +1, constraint: +1 },     // 要検証: 内向収束・持続
+  "ぬ": { openness: -1, stability: +1 },       // 要検証: 内向・持続・蓄積
+  "ね": { stability: +1, openness: +1 },       // 要検証: 双方向・持続・媒介
+  "の": { openness: +1, stability: +1 },
+  // は行
   "は": { openness: +2, visibility: +1 },
+  "ひ": { visibility: +1, openness: +1 },      // 要検証: 外向・拡散収束
+  "ふ": { openness: -1, stability: +1 },       // 要検証: 内向・拡散保持・蓄積
+  "へ": { openness: +1, visibility: +1 },      // 要検証: 双方向・拡散接続・媒介
+  // ま行
   "ま": { stability: +2, openness: +1 },
+  "み": { visibility: +1, stability: +1 },
+  "む": { openness: -2, visibility: -1 },
+  // や行
   "や": { openness: +1, visibility: -1 },
+  "ゆ": { openness: -1, stability: +1 },       // 要検証: 内向・接続保持・蓄積
+  "よ": { openness: +1, scale: +1 },           // 要検証: 中立・接続収束保持・持続
+  // ら行
+  "ら": { openness: +1, visibility: +1 },
+  "り": { visibility: +1, constraint: +1 },    // 要検証: 外向・拡散収束・反復
+  "る": { openness: -1, stability: +1 },       // 要検証: 内向・拡散保持・反復蓄積
+  "れ": { openness: +1, visibility: +1 },      // 要検証: 双方向・拡散接続・反復媒介
+  // わ行
+  "わ": { openness: +1, stability: +1 },
+  // ん（内向シフト音 → 姓全体を内向きに引き寄せる）
+  "ん": { openness: -1, visibility: -1 },      // 要検証
+  // グライド音（拗音用）
   "ゃ": { openness: +1 },
   "ゅ": { openness: -1 },
   "ょ": { visibility: -1 },

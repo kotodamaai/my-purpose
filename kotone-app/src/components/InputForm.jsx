@@ -17,18 +17,20 @@ export default function InputForm({ onSubmit, onBack }) {
     day: '',
     gender: '',
     bloodType: '',
+    birthdayEstimated: false,
   });
   const [error, setError] = useState('');
 
   function handleChange(e) {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value, type, checked } = e.target;
+    setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   }
 
   function handleSubmit(e) {
     e.preventDefault();
     setError('');
 
-    const { lastName, firstName, year, month, day, gender, bloodType } = form;
+    const { lastName, firstName, year, month, day, gender, bloodType, birthdayEstimated } = form;
 
     if (!firstName.trim()) {
       setError('名（ひらがな）を入力してください。');
@@ -70,6 +72,7 @@ export default function InputForm({ onSubmit, onBack }) {
       lastName: lastName.trim(),
       year: y, month: m, day: d,
       gender, bloodType,
+      birthdayEstimated,
       fn_L1, fn_L2, ln_interface,
       n_L1, n_adj,
       adjustedState, output,
@@ -148,6 +151,16 @@ export default function InputForm({ onSubmit, onBack }) {
               </div>
             </div>
           </div>
+          <label className="estimated-check" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#666', marginTop: 8 }}>
+            <input
+              type="checkbox"
+              name="birthdayEstimated"
+              checked={form.birthdayEstimated}
+              onChange={handleChange}
+              style={{ width: 'auto' }}
+            />
+            誕生日は仮
+          </label>
         </div>
 
         <hr className="field-divider" />
