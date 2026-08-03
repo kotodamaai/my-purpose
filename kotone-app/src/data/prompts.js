@@ -15,11 +15,22 @@ export function buildPromptInput(firstName, lastName, gender, bloodType, adjuste
   const genderStr = gender === "male" ? "男性" : gender === "female" ? "女性" : "その他";
   const bloodStr = bloodType || "不明";
 
+  // 方向の記述：拮抗している場合は単一断定を避け、混在として伝える(発見C対応)
+  let directionStr = "不明";
+  if (adjustedState) {
+    const derived = adjustedState.derived;
+    if (derived && derived.complex_flag && derived.complex_pair) {
+      directionStr = `${derived.complex_pair[0]}と${derived.complex_pair[1]}が拮抗(僅差)`;
+    } else {
+      directionStr = adjustedState.direction;
+    }
+  }
+
   return `◆ 属性
 性別: ${genderStr} / 血液型: ${bloodStr}型
 
 ◆ 名(エンジン)
-動きの方向: ${adjustedState ? adjustedState.direction : "不明"}
+動きの方向: ${directionStr}
 プロセス: ${adjustedState ? adjustedState.process.join(" → ") : "不明"}
 修飾: ${adjustedState && adjustedState.modifier && adjustedState.modifier.length ? adjustedState.modifier.join(", ") : "なし"}
 数秘補正後の優先motion: ${n_adj && n_adj.priority && n_adj.priority.length ? n_adj.priority.join(", ") : "なし"}

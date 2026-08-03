@@ -23,6 +23,23 @@ export function decomposeSounds(name) {
   return result;
 }
 
+// 拮抗判定の閾値(暫定値。実データでの感度分析待ち。KOTONE_L2非損失表現設計_v1_0 3.2節と対応)
+export const DOMINANCE_MARGIN_THRESHOLD = 0.15;
+
+// direction_distributionから代表値・派生値を算出する(表示・プロンプト用途にのみ使う。構造の正本ではない)
+function deriveDirection(distribution, totalWeight) {
+  const sorted = Object.entries(distribution).sort((a, b) => b[1] - a[1]);
+  const [dominant_direction, topScore] = sorted[0] || ["中立", 0];
+  const secondScore = sorted[1]?.[1] ?? 0;
+  const total = Object.values(distribution).reduce((a, b) => a + b, 0) || 1;
+  const dominant_margin = (topScore - secondScore) / total;
+  const complex_flag = dominant_margin < DOMINANCE_MARGIN_THRESHOLD;
+  const complex_pair = complex_flag ? [sorted[0]?.[0], sorted[1]?.[0]].filter(Boolean) : null;
+  // confidence: 音数・重み総量が少ないほど根拠が薄いとみなす暫定式(要調整)
+  const confidence = Math.min(1, totalWeight / 3);
+  return { dominant_direction, dominant_margin, complex_flag, complex_pair, confidence };
+}
+
 export function getKotodamaL1(name) {
   if (!name) return null;
   const sounds = decomposeSounds(name);
@@ -32,12 +49,14 @@ export function getKotodamaL1(name) {
     motion: {},
     modifier: {},
   };
+  let totalWeight = 0;
   for (const { ch, weight } of sounds) {
     const def = KOTODAMA_L1[ch];
     if (!def) continue;
     counter[ch] = (counter[ch] || 0) + 1;
     const decay = Math.pow(0.5, counter[ch] - 1);
     const w = decay * weight;
+    totalWeight += w;
     if (def.direction === "内向シフト") {
       features.direction.内向 += 0.3 * w;
       continue;
@@ -52,7 +71,16 @@ export function getKotodamaL1(name) {
       features.modifier[mod] = (features.modifier[mod] || 0) + w;
     }
   }
-  const direction = Object.entries(features.direction).sort((a, b) => b[1] - a[1])[0]?.[0] || "中立";
+  // 一次データ：方向の分布(集約せず保持。発見Cの対応)
+  const directionTotal = Object.values(features.direction).reduce((a, b) => a + b, 0) || 1;
+  const direction_distribution = Object.fromEntries(
+    Object.entries(features.direction).map(([k, v]) => [k, v / directionTotal])
+  );
+  // 二次データ：表示・プロンプト用の派生値
+  const derived = deriveDirection(features.direction, totalWeight);
+  // 後方互換：direction は dominant_direction のまま(既存の消費箇所を壊さない)
+  const direction = derived.dominant_direction;
+
   const motionOrdered = [];
   const motionSeen = new Set();
   for (const { ch } of sounds) {
@@ -66,7 +94,16 @@ export function getKotodamaL1(name) {
     }
   }
   const modifierList = Object.entries(features.modifier).filter(([, v]) => v >= 0.5).map(([k]) => k);
-  return { sounds: sounds.map(s => s.ch), sounds_with_weight: sounds, direction, motion: motionOrdered, modifier: modifierList, raw_scores: features };
+  return {
+    sounds: sounds.map(s => s.ch),
+    sounds_with_weight: sounds,
+    direction,
+    direction_distribution,
+    derived,
+    motion: motionOrdered,
+    modifier: modifierList,
+    raw_scores: features,
+  };
 }
 
 function needsCorrection(motionList) {
@@ -92,7 +129,14 @@ export function buildL2WithTags(L1) {
   if (process.includes("接続")) {
     for (const mod of L1.modifier) tags.push(`接続_${mod}`);
   }
-  return { process, direction: L1.direction, modifier: L1.modifier, tags };
+  return {
+    process,
+    direction: L1.direction,
+    direction_distribution: L1.direction_distribution,
+    derived: L1.derived,
+    modifier: L1.modifier,
+    tags,
+  };
 }
 
 export function getSurnameInterface(lastName) {
@@ -136,7 +180,15 @@ export function adjustWithNumerology(firstName_L2, numerologyAdj) {
     }
     process = reordered;
   }
-  return { process, direction: firstName_L2.direction, modifier: firstName_L2.modifier, tags: firstName_L2.tags, adjustments: numerologyAdj };
+  return {
+    process,
+    direction: firstName_L2.direction,
+    direction_distribution: firstName_L2.direction_distribution,
+    derived: firstName_L2.derived,
+    modifier: firstName_L2.modifier,
+    tags: firstName_L2.tags,
+    adjustments: numerologyAdj,
+  };
 }
 
 export function computeNameSurnameInteraction(adjustedState, surnameInterface) {
