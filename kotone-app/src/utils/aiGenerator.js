@@ -78,8 +78,17 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
         usedModel = "Sonnet修";
       }
 
+      // キャッチコピー(idx=0)完了後、締め(idx=5)のプロンプトにキャッチを注入
+      if (i === 0 && text) {
+        sections[5].prompt = sections[5].prompt.replace('__CATCH__', text.trim());
+      }
+
       if (onSectionComplete) onSectionComplete(i, sec.title, text, usedModel, checkOk);
     } catch (e) {
+      // 失敗時もプレースホルダーを空文字で埋めてから継続
+      if (i === 0) {
+        sections[5].prompt = sections[5].prompt.replace('__CATCH__', '（キャッチコピー未取得）');
+      }
       if (onSectionComplete) onSectionComplete(i, sec.title, null, null, false, String(e.message || e));
     }
   }
