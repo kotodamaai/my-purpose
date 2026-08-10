@@ -1,0 +1,11 @@
+{
+  "n_version": "neutral-v0.1",
+  "note": "暫定の固定値。設計書§2.3に基づき「標準/標準/標準」ラベルに落ちる値を選んでいる。実際の文章を見ながら後日あっきーが確定する想定(設計書§8.2)。",
+  "value": {
+    "source": "neutral",
+    "weight": 0,
+    "priority": [],
+    "persistence": 0,
+    "timing": []
+  }
+}

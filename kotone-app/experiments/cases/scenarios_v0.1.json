@@ -1,0 +1,63 @@
+{
+  "version": "scenarios-v0.1",
+  "created_at": "2026-08-09",
+  "source": "HANDOFF_LUMINA_KOTONE_2026-08-09.md Section 4",
+  "note": "対になっていた2項目(初対面の人数差/好悪の対応差)は、その差分自体が構造を映す可能性が高いため分割した。分割の是非はあっきー確認待ち。",
+  "scenarios": [
+    {
+      "scenario_id": "normal_policy",
+      "label": "通常時の方針",
+      "purpose": "ベースライン。何も起きていない平常時の動き方の基準点を取る。他シチュエーションとの差分比較の起点。"
+    },
+    {
+      "scenario_id": "problem_occurred",
+      "label": "問題発生時",
+      "purpose": "Shadow化しやすい局面の代表。探索が固着に変わる境界などが出やすい。"
+    },
+    {
+      "scenario_id": "delegating",
+      "label": "他人へ依頼するとき",
+      "purpose": "資源探索・委任が機能的か依存的かの境界が出やすい。"
+    },
+    {
+      "scenario_id": "third_party_conflict",
+      "label": "第三者間の対立",
+      "purpose": "本人が当事者でない対立への関わり方。仲裁/回避/放置などの傾向差。"
+    },
+    {
+      "scenario_id": "first_meeting_small_group",
+      "label": "初対面・少人数",
+      "purpose": "openness/visibility等、姓インターフェース由来の特性が出やすい規模。"
+    },
+    {
+      "scenario_id": "first_meeting_large_group",
+      "label": "初対面・大人数",
+      "purpose": "少人数時との差分そのものが構造の観測点。scale特性の検証に直結。"
+    },
+    {
+      "scenario_id": "person_liked",
+      "label": "好きな人への対応",
+      "purpose": "開放的な条件下での動き方。"
+    },
+    {
+      "scenario_id": "person_disliked",
+      "label": "苦手な人への対応",
+      "purpose": "好きな人との差分が本人にとって最も自分らしいと感じやすい対比になりうる。"
+    },
+    {
+      "scenario_id": "desire_unmet",
+      "label": "欲しいものが得られない",
+      "purpose": "欲求不満局面での固着・切り替え・再探索の傾向。"
+    },
+    {
+      "scenario_id": "no_progress",
+      "label": "上達しない",
+      "purpose": "持続性(persistence)がN由来として仮説されていた領域と重なる可能性があるため、N寄与監査で特に注目。"
+    },
+    {
+      "scenario_id": "deadline_vs_review",
+      "label": "期限と追加検討が衝突する",
+      "purpose": "timing(N由来のタイミング要因)との重なりが疑われるため、N寄与監査で特に注目。"
+    }
+  ]
+}

@@ -12,6 +12,16 @@ dist
 dist-ssr
 *.local
 
+# Secrets
+.env
+.env.*
+!.env.example
+
+# KOTONE検証ハーネス: 実行ログ(被験者の診断文を含みうるため既定では追跡しない。
+# レビュー用に共有する分は個別にgit addする)
+experiments/runs/*.jsonl
+experiments/runs/*.csv
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
