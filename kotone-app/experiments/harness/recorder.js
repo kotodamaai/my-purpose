@@ -50,13 +50,17 @@ export function computeBlindLabel(experimentId, caseId, scenarioId, armsInGroup,
 
 /**
  * @param {string} runsDir  experiments/runs のパス
- * @param {string} experimentId
+ * @param {string|null} experimentId  fileName未指定時は `${experimentId}.jsonl` に書く。
+ *   fileName指定時はexperimentIdは無視してよい(null許容)
  * @param {object} record
+ * @param {{fileName?: string}} [opts]  budget-cap使用時など、`.partial.jsonl` に
+ *   書き分けたい場合にファイル名を明示するためのオプション
  * @returns {string} 書き込んだファイルの絶対パス
  */
-export function appendRecord(runsDir, experimentId, record) {
+export function appendRecord(runsDir, experimentId, record, opts = {}) {
   if (!existsSync(runsDir)) mkdirSync(runsDir, { recursive: true });
-  const filePath = path.join(runsDir, `${experimentId}.jsonl`);
+  const fileName = opts.fileName || `${experimentId}.jsonl`;
+  const filePath = path.join(runsDir, fileName);
   appendFileSync(filePath, JSON.stringify(record) + "\n", 'utf8');
   return filePath;
 }

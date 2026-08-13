@@ -36,7 +36,7 @@ function labelPersistence(p) {
   return "標準";
 }
 
-function buildInputDataString({ k_input, n_input, interaction_input, context_input }, scenario) {
+export function buildInputDataString({ k_input, n_input, interaction_input, context_input }, scenario) {
   const genderStr = context_input.gender === "male" ? "男性" : context_input.gender === "female" ? "女性" : "その他/不明";
   const bloodStr = context_input.bloodType && context_input.bloodType !== "unknown" ? `${context_input.bloodType}型` : "不明";
 

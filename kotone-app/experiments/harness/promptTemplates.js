@@ -121,3 +121,28 @@ ${CONFIDENTIAL_RULE}
 構造①〜③のみ出力。前置き不要。` },
   ];
 }
+
+// --- プロンプトキャッシュ用の静的/動的分割(依頼書1-C) ---
+// current方式の文言(buildSectionPrompts)は一字一句変更しない、という制約を守ったまま
+// キャッシュ分割を行うため、buildSectionPrompts自体に一意なマーカーをinputDataとして
+// 渡し、実際に生成された文字列中のマーカー位置で機械的に分割する。
+// (テンプレートの静的部分を手で書き写すと、本文とズレるリスクがあるため避けている)
+const CACHE_SPLIT_MARKER = " KOTONE_CACHE_SPLIT_MARKER ";
+
+/**
+ * @param {string} inputData 実際に埋め込むinputData文字列
+ * @returns {Array<{title: string, prefix: string|null, suffix: string}>}
+ *   prefix: マーカーより前の静的部分(cache_control対象にする)。マーカーが見つからない
+ *   場合はnull(キャッシュ分割不可、prompt全体をsuffixに入れて呼び出し側で通常送信する)
+ *   suffix: inputData以降(CONFIDENTIAL_RULE等の後続静的テキストを含む。ここは非キャッシュ)
+ */
+export function getSectionCacheSplits(inputData) {
+  const templated = buildSectionPrompts(CACHE_SPLIT_MARKER);
+  return templated.map(({ title, prompt }) => {
+    const idx = prompt.indexOf(CACHE_SPLIT_MARKER);
+    if (idx === -1) return { title, prefix: null, suffix: prompt };
+    const prefix = prompt.slice(0, idx);
+    const afterMarker = prompt.slice(idx + CACHE_SPLIT_MARKER.length);
+    return { title, prefix, suffix: inputData + afterMarker };
+  });
+}

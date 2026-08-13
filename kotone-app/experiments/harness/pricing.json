@@ -1,0 +1,11 @@
+{
+  "note": "1トークンあたりではなく100万トークン(MTok)あたりのUSD単価。要確認: Anthropic公式の最新価格表と突き合わせること。将来単価が変わった場合はこのファイルの数値のみ書き換えればよい。",
+  "updated_at": "2026-08-13",
+  "cache_write_multiplier": 1.25,
+  "cache_read_multiplier": 0.1,
+  "cache_note": "ephemeral(5分TTL)キャッシュ書き込みは入力単価の1.25倍、キャッシュ読み取りは入力単価の0.1倍(Anthropic標準)。1h TTLは別倍率だが今回は使用しない。",
+  "models": {
+    "claude-haiku-4-5-20251001": { "input_per_mtok": 1.00, "output_per_mtok": 5.00 },
+    "claude-sonnet-4-5": { "input_per_mtok": 3.00, "output_per_mtok": 15.00 }
+  }
+}
