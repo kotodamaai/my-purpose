@@ -718,6 +718,39 @@ async function main() {
   const isDryRun = args["dry-run"] === "true";
   const totalRecords = cases.length * scenarioIds.length * armNames.length;
 
+  // 重複実行の検知(依頼者指摘対応)。同一experiment_idの完了ファイルが既に存在する場合、
+  // これから生成しようとしている(case_id, scenario_id, model_arm, generation_mode)の
+  // 組み合わせが既存レコードと衝突していないか確認する。衝突があれば、意図しない
+  // 二重計上(重複レコード)を防ぐため既定でエラー終了する。意図的な再実行の場合は
+  // --allow-duplicatesを付ける。
+  if (!isDryRun) {
+    const finalPath = path.join(RUNS_DIR, `${experimentId}.jsonl`);
+    if (existsSync(finalPath)) {
+      const existingLines = readFileSync(finalPath, "utf8").trim().split("\n").filter(Boolean);
+      const existingKeys = new Set(existingLines.map(l => {
+        const r = JSON.parse(l);
+        return `${r.case_id}|${r.scenario_id}|${r.model_arm}|${r.generation_mode}`;
+      }));
+      const plannedKeys = [];
+      for (const c of cases) {
+        for (const scenarioId of scenarioIds) {
+          for (const armName of armNames) {
+            plannedKeys.push(`${c.raw.case_id}|${scenarioId}|${armName}|${generationMode}`);
+          }
+        }
+      }
+      const collisions = plannedKeys.filter(k => existingKeys.has(k));
+      if (collisions.length > 0 && args["allow-duplicates"] !== "true") {
+        console.error(`\n${finalPath} に、これから生成しようとする組み合わせと同一のレコードが既に${collisions.length}件存在します:`);
+        for (const k of collisions.slice(0, 10)) console.error(`  ${k}`);
+        if (collisions.length > 10) console.error(`  ...ほか${collisions.length - 10}件`);
+        console.error(`\n意図した再実行であれば --allow-duplicates を付けて再実行してください(重複レコードとして追記されます)。`);
+        console.error(`別条件で回すつもりだった場合は --experiment-id を変えてください。`);
+        process.exit(1);
+      }
+    }
+  }
+
   console.log(`experiment_id=${experimentId} model=${model} generation-mode=${generationMode}`);
   console.log(`arms=${armNames.join(",")}`);
   console.log(`scenarios=${scenarioIds.join(",")}`);
