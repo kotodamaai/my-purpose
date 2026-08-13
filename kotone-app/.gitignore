@@ -22,6 +22,10 @@ dist-ssr
 experiments/runs/*.jsonl
 experiments/runs/*.csv
 
+# KOTONE検証ハーネス: 実データケース(氏名・生年月日等の個人情報を含むため
+# 常にリポジトリ外に保つ。cases/直下は架空データのみを置く運用)
+experiments/cases/private/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -7,6 +7,10 @@
 // --scenarios 未指定時は normal_policy と problem_occurred の2種のみ(設計書§8.2 Stage0向け)。
 // --cases 未指定時は case_001 のみ。--model 未指定時は haiku固定。
 //
+// 実データケース(氏名・生年月日等の個人情報)は cases/ 直下ではなく cases/private/ に置く。
+// private/ は.gitignoreで常に除外されるため、`--cases=private/case_akkey` のように
+// サブディレクトリを含めて指定する(拡張子.jsonは付けない。他のcase指定と同じ書式)。
+//
 // 本番コード(src/data/prompts.js, src/utils/aiGenerator.js等)は一切importしない。
 // PROXY_URLとモデルID文字列は本番と同じ値を定数として複製している(ロジックのコピーではなく
 // 単なる接続先定数)。
@@ -224,7 +228,13 @@ async function main() {
   const neutralNInput = neutralNFile.value;
 
   const cases = caseIds.map(id => {
-    const raw = JSON.parse(readFileSync(path.join(CASES_DIR, `${id}.json`), "utf8"));
+    // private/case_akkey のようなサブディレクトリ指定を許可しつつ、cases/の外を
+    // 参照できないようにする(実データを扱うため、意図しないパスへの読み書きを防ぐ)
+    const resolved = path.resolve(CASES_DIR, `${id}.json`);
+    if (!resolved.startsWith(CASES_DIR + path.sep)) {
+      throw new Error(`不正なcase指定です(cases/の外を参照しています): ${id}`);
+    }
+    const raw = JSON.parse(readFileSync(resolved, "utf8"));
     const kInput = buildKInput(raw.firstName, raw.lastName);
     if (!kInput) throw new Error(`case ${id}: firstName が不正で k_input を構築できません`);
     const legacyNInput = buildLegacyNInput(raw.birthDate);
