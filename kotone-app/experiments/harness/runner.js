@@ -2,10 +2,20 @@
 //
 // 使い方:
 //   node runner.js --experiment-id=exp-001 --arms=A1_K_only,A2_K_plus_LegacyN \
-//     [--scenarios=normal_policy,problem_occurred] [--cases=case_001] [--model=haiku|sonnet]
+//     [--scenarios=normal_policy,problem_occurred] [--cases=case_001] \
+//     [--shuffle-pool=case_002,case_003] [--model=haiku|sonnet] [--dry-run]
 //
 // --scenarios 未指定時は normal_policy と problem_occurred の2種のみ(設計書§8.2 Stage0向け)。
 // --cases 未指定時は case_001 のみ。--model 未指定時は haiku固定。
+//
+// --cases は「レコードを生成する対象」専用。--shuffle-pool は「A4(Shuffled-N)の
+// 借用元候補」専用で、--casesとは完全に別の集合として扱う(--cases側のケースを
+// 借用元プールに混ぜない)。--shuffle-pool省略時は、従来通り--cases自身(自分以外)を
+// 借用プールとして使う(後方互換)。
+//
+// --dry-run を付けると、実際のLLM呼び出しを一切行わず、生成される予定の
+// レコード件数と(case, scenario, arm)の全組み合わせだけを表示して終了する。
+// 本番実行前の件数確認に使う。
 //
 // 実データケース(氏名・生年月日等の個人情報)は cases/ 直下ではなく cases/private/ に置く。
 // private/ は.gitignoreで常に除外されるため、`--cases=private/case_akkey` のように
@@ -71,7 +81,9 @@ function parseArgs(argv) {
   const args = {};
   for (const raw of argv) {
     const m = /^--([^=]+)=(.*)$/.exec(raw);
-    if (m) args[m[1]] = m[2];
+    if (m) { args[m[1]] = m[2]; continue; }
+    const m2 = /^--([^=]+)$/.exec(raw);
+    if (m2) args[m2[1]] = "true"; // 値なしフラグ(例: --dry-run)
   }
   return args;
 }
@@ -80,10 +92,18 @@ function splitCsv(s) {
   return (s || "").split(",").map(x => x.trim()).filter(Boolean);
 }
 
-async function runOneCombo({ experimentId, model, c, cases, scenario, armName, armNames }) {
-  const pool = cases
-    .filter(o => o !== c)
-    .map(o => ({ case_id: o.raw.case_id, n_input: o.legacyNInput }));
+// case_id(サブディレクトリ含む)からファイルを解決して読み込む。
+// cases/の外を参照できないようガードする(実データを扱うため)。
+function loadCaseRaw(id) {
+  const resolved = path.resolve(CASES_DIR, `${id}.json`);
+  if (!resolved.startsWith(CASES_DIR + path.sep)) {
+    throw new Error(`不正なcase指定です(cases/の外を参照しています): ${id}`);
+  }
+  return JSON.parse(readFileSync(resolved, "utf8"));
+}
+
+async function runOneCombo({ experimentId, model, c, shufflePool, scenario, armName, armNames }) {
+  const pool = shufflePool.filter(p => p.case_id !== c.raw.case_id);
 
   const contextInput = buildContextInput(c.raw.gender, c.raw.bloodType, scenario.scenario_id);
 
@@ -228,13 +248,7 @@ async function main() {
   const neutralNInput = neutralNFile.value;
 
   const cases = caseIds.map(id => {
-    // private/case_akkey のようなサブディレクトリ指定を許可しつつ、cases/の外を
-    // 参照できないようにする(実データを扱うため、意図しないパスへの読み書きを防ぐ)
-    const resolved = path.resolve(CASES_DIR, `${id}.json`);
-    if (!resolved.startsWith(CASES_DIR + path.sep)) {
-      throw new Error(`不正なcase指定です(cases/の外を参照しています): ${id}`);
-    }
-    const raw = JSON.parse(readFileSync(resolved, "utf8"));
+    const raw = loadCaseRaw(id);
     const kInput = buildKInput(raw.firstName, raw.lastName);
     if (!kInput) throw new Error(`case ${id}: firstName が不正で k_input を構築できません`);
     const legacyNInput = buildLegacyNInput(raw.birthDate);
@@ -242,12 +256,43 @@ async function main() {
     return { raw, kInput, legacyNInput, interactionInput, neutralNInput };
   });
 
-  initSeed(experimentId);
+  // --shuffle-pool未指定時は、従来通り--cases自身(自分以外)を借用プールとする(後方互換)
+  const shufflePoolIds = args["shuffle-pool"] ? splitCsv(args["shuffle-pool"]) : null;
+  const shufflePool = shufflePoolIds
+    ? shufflePoolIds.map(id => {
+        const raw = loadCaseRaw(id);
+        const legacyNInput = buildLegacyNInput(raw.birthDate);
+        return { case_id: raw.case_id, n_input: legacyNInput };
+      })
+    : cases.map(c => ({ case_id: c.raw.case_id, n_input: c.legacyNInput }));
+
+  const isDryRun = args["dry-run"] === "true";
 
   console.log(`experiment_id=${experimentId} model=${model}`);
   console.log(`arms=${armNames.join(",")}`);
   console.log(`scenarios=${scenarioIds.join(",")}`);
-  console.log(`cases=${caseIds.join(",")}`);
+  console.log(`cases=${caseIds.join(",")} (${cases.length}件 = レコード生成対象)`);
+  console.log(`shuffle-pool=${shufflePoolIds ? shufflePoolIds.join(",") : "(未指定。casesを流用)"} (${shufflePool.length}件)`);
+
+  const totalRecords = cases.length * scenarioIds.length * armNames.length;
+
+  if (isDryRun) {
+    console.log(`\n[dry-run] 実際のLLM呼び出しは行いません。`);
+    console.log(`[dry-run] 生成予定レコード数: ${cases.length}ケース × ${scenarioIds.length}シナリオ × ${armNames.length}arm = ${totalRecords}件`);
+    console.log(`[dry-run] 組み合わせ一覧:`);
+    let i = 0;
+    for (const c of cases) {
+      for (const scenarioId of scenarioIds) {
+        for (const armName of armNames) {
+          i++;
+          console.log(`  [${i}] ${c.raw.case_id} / ${scenarioId} / ${armName}`);
+        }
+      }
+    }
+    return;
+  }
+
+  initSeed(experimentId);
 
   let count = 0;
   let lastFilePath = null;
@@ -256,9 +301,9 @@ async function main() {
     for (const scenarioId of scenarioIds) {
       const scenario = scenarioMap.get(scenarioId);
       for (const armName of armNames) {
-        lastFilePath = await runOneCombo({ experimentId, model, c, cases, scenario, armName, armNames });
+        lastFilePath = await runOneCombo({ experimentId, model, c, shufflePool, scenario, armName, armNames });
         count++;
-        console.log(`[${count}] ${c.raw.case_id} / ${scenarioId} / ${armName} -> 記録完了`);
+        console.log(`[${count}/${totalRecords}] ${c.raw.case_id} / ${scenarioId} / ${armName} -> 記録完了`);
       }
     }
   }
