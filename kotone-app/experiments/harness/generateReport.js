@@ -39,6 +39,8 @@ function summarizeMode(records) {
   const llmCheckedRecords = records.filter(r => r.llm_check_performed);
   const llmNgCount = llmCheckedRecords.filter(r => r.llm_check_result && !r.llm_check_result.trim().startsWith("OK")).length;
   const retriedCount = records.filter(r => r.generation_retried).length;
+  const fixCount = records.filter(r => r.fix_performed).length;
+  const rawEqualsCheckedCount = records.filter(r => r.raw_output === r.checked_output).length;
 
   return {
     n,
@@ -54,6 +56,9 @@ function summarizeMode(records) {
     llmCheckedCount: llmCheckedRecords.length,
     llmNgRate: llmCheckedRecords.length > 0 ? llmNgCount / llmCheckedRecords.length : null,
     retriedRate: n > 0 ? retriedCount / n : 0,
+    fixRate: n > 0 ? fixCount / n : 0,
+    fixCount,
+    rawEqualsCheckedCount,
   };
 }
 
@@ -91,6 +96,7 @@ function main() {
     ["キャッシュ書き込みトークン(合計)", m => summaries[m].totalCacheCreation.toLocaleString()],
     ["ローカル検証失敗率", m => fmtPct(summaries[m].localFailRate)],
     ["LLM判定NG率(サンプリング分)", m => `${fmtPct(summaries[m].llmNgRate)}(判定実施 ${summaries[m].llmCheckedCount}/${summaries[m].n}件)`],
+    ["修正生成(fix)発生率", m => `${fmtPct(summaries[m].fixRate)}(${summaries[m].fixCount}/${summaries[m].n}件でraw≠checked)`],
     ["リトライ発生率", m => fmtPct(summaries[m].retriedRate)],
   ];
 
@@ -115,16 +121,20 @@ function main() {
   md += `| current(セクションごと、最大) | 約357トークン |\n`;
   md += `| unified | 約644トークン |\n`;
   md += `| two-call(構造抽出/生成) | 約254 / 約566トークン |\n\n`;
-  md += `別途、同一条件(current方式・normal_policy・A1_K_only)で\`--no-cache\`との実費比較を行ったが、\n`;
-  md += `差はほぼ無かった(下記「キャッシュ有効/無効での実費差」参照)。これは実装の不具合ではなく、\n`;
-  md += `現状のプロンプトサイズでは技術的にキャッシュが効かないことが原因。将来的にキャッシュの\n`;
-  md += `恩恵を受けるには、辞書本体などレコードをまたいで完全に不変な、より大きな静的ブロックを\n`;
-  md += `プロンプトに追加する必要がある(依頼書1-Cが想定していた「K/N辞書・シチュエーション定義」の\n`;
-  md += `埋め込みは今回未実施。現行プロンプトは辞書の生データではなく、計算済みラベルのみを渡す設計のため)。\n\n`;
-  md += `**キャッシュ有効/無効での実費差(1レコード、current方式、normal_policy、A1_K_only):**\n\n`;
-  md += `| 条件 | 実費 |\n|---|---|\n`;
-  md += `| キャッシュ有効 | (別途 exp-a0-compare 内の該当レコード参照) |\n`;
-  md += `| キャッシュ無効(--no-cache) | (別途 exp-a0-nocache-check.jsonl 参照) |\n`;
+  md += `これは実装の不具合ではなく、現状のプロンプトサイズでは技術的にキャッシュが効かないことが\n`;
+  md += `原因。将来的にキャッシュの恩恵を受けるには、辞書本体などレコードをまたいで完全に不変な、\n`;
+  md += `より大きな静的ブロックをプロンプトに追加する必要がある(依頼書1-Cが想定していた「K/N辞書・\n`;
+  md += `シチュエーション定義」の埋め込みは今回未実施)。\n\n`;
+  md += `**キャッシュ有効/無効での実費差**: exp-a0-compare(初回A0)実施時に、同一条件\n`;
+  md += `(current方式・normal_policy・A1_K_only)でキャッシュ有効$0.01392 / 無効$0.01455の\n`;
+  md += `実測比較を行い、差はほぼ無いことを確認済み(誤差範囲。cache_read/creation共に0のため)。\n`;
+  md += `本ラウンドでは同じ結論が既知のため再検証していない。\n`;
+
+  md += `\n## 見積もりと実測の誤差について\n\n`;
+  md += `実行前見積もり(--budget-cap確認プロンプト)は、NG発生時の修正生成(fix)呼び出しを\n`;
+  md += `計算に含めていない。修正生成が発生した分だけ、実測は見積もりの上限(max)を超えうる。\n`;
+  md += `修正生成発生率: current=${fmtPct(summaries.current.fixRate)} / unified=${fmtPct(summaries.unified.fixRate)} / two-call=${fmtPct(summaries["two-call"].fixRate)}\n`;
+  md += `(見積もり関数への修正生成コスト反映は未実施。今後の課題)\n`;
 
   md += `\n## 品質面(目視比較用)\n\n`;
   md += `意味欠落率・セクション間矛盾等の定量評価は依頼書の通り自動化していない。\n`;

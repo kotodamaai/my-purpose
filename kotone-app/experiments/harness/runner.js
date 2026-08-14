@@ -380,6 +380,45 @@ ${joined}`;
   return { result: r.text.trim(), costUsd: r.costUsd, inputTokens: r.inputTokens, outputTokens: r.outputTokens, usageIsActual: r.usageIsActual };
 }
 
+function isNgResult(llmCheckResult) {
+  if (!llmCheckResult) return false;
+  const t = llmCheckResult.trim();
+  if (t.startsWith("(ERROR:")) return false; // チェック自体が失敗した場合は修正フローに回さない
+  return t !== "OK";
+}
+
+// NG時の修正生成(Sonnet)。方式(current/unified/two-call)によらず、6セクションの
+// title→textをUNIFIED_KEY_TO_TITLEの語彙でJSON化して渡し、同じ語彙で修正結果を
+// 受け取る。1回の呼び出しで6セクションまとめて直す(セクションごとに直すと
+// NG1件あたり最大6回の追加呼び出しになり、1-Aのコスト最適化の趣旨に反するため)。
+async function runFixGeneration(sectionResults, llmCheckResult, model) {
+  const original = {};
+  for (const s of sectionResults) {
+    const key = Object.keys(UNIFIED_KEY_TO_TITLE).find(k => UNIFIED_KEY_TO_TITLE[k] === s.title);
+    if (key) original[key] = s.text;
+  }
+  const prompt = `あなたはKOTONEという自己理解診断アプリの診断文編集者です。
+以下の診断文(6セクション)には、指摘された問題があります。指摘箇所だけを修正し、問題のない部分はそのまま維持してください。
+
+【元の診断文】
+${JSON.stringify(original)}
+
+【指摘された問題】
+${llmCheckResult}
+
+【出力形式(厳守)】
+前置き・説明・コードフェンスは付けず、次のキーだけを持つJSONオブジェクト1つだけを出力してください。
+{"catch":"...","phenomena":"...","name_insight":"...","birthday_insight":"...","light_shadow":"...","closing":"..."}`;
+
+  const r = await callProxyWithUsage(prompt, model, 2000);
+  const parsed = parseModelJson(r.text);
+  const fixedSections = sectionsFromKeyed(parsed, UNIFIED_KEY_TO_TITLE, r.text);
+  return {
+    fixedSections, parsed,
+    costUsd: r.costUsd, inputTokens: r.inputTokens, outputTokens: r.outputTokens, usageIsActual: r.usageIsActual,
+  };
+}
+
 // --- 決定的PRNG(サンプリング判定用。armResolver/recorderと同じ自前実装) ---
 function mulberry32(seed) {
   let t = seed >>> 0;
@@ -439,17 +478,34 @@ async function runOneCombo({ experimentId, model, generationMode, selfcheckSampl
     }
   }
 
-  // A0では自動修正(Sonnet再生成)は行わない。LLM判定はNG検出のみを記録し、
-  // 修正ループの効果測定はPhase A本実行以降の課題とする(依頼書1-Aの重複呼び出し
-  // 削減方針に合わせ、checked_outputは常にraw_outputと同一とする)。
   const rawOutputArr = gen.sectionResults.map(s => ({ title: s.title, text: s.text }));
 
-  const totalCallCount = gen.callCount + (shouldRunLlmCheck ? 1 : 0);
-  const totalCostUsd = gen.costUsd + llmCheckCostUsd;
-  const totalInputTokens = gen.inputTokens + llmCheckInputTokens;
-  const totalOutputTokens = gen.outputTokens + llmCheckOutputTokens;
+  // NG時の修正生成(Sonnet)。llm_check_resultが"OK"以外(かつチェック自体がエラーで
+  // 落ちていない)場合のみ実行する。1回の追加呼び出しで6セクションまとめて直す。
+  const fixPerformed = shouldRunLlmCheck && isNgResult(llmCheckResult);
+  let checkedOutputArr = rawOutputArr;
+  let fixCostUsd = 0, fixInputTokens = 0, fixOutputTokens = 0;
+  let fixUsageIsActual = true;
+
+  if (fixPerformed) {
+    try {
+      const fix = await runFixGeneration(gen.sectionResults, llmCheckResult, MODEL_SONNET);
+      checkedOutputArr = fix.fixedSections.map(s => ({ title: s.title, text: s.text }));
+      fixCostUsd = fix.costUsd; fixInputTokens = fix.inputTokens; fixOutputTokens = fix.outputTokens;
+      fixUsageIsActual = fix.usageIsActual;
+    } catch (e) {
+      // 修正呼び出し自体が失敗した場合は、raw_outputをそのままchecked_outputとして残す
+      checkedOutputArr = rawOutputArr;
+    }
+  }
+
+  const totalCallCount = gen.callCount + (shouldRunLlmCheck ? 1 : 0) + (fixPerformed ? 1 : 0);
+  const totalCostUsd = gen.costUsd + llmCheckCostUsd + fixCostUsd;
+  const totalInputTokens = gen.inputTokens + llmCheckInputTokens + fixInputTokens;
+  const totalOutputTokens = gen.outputTokens + llmCheckOutputTokens + fixOutputTokens;
   const totalCacheReadTokens = gen.cacheReadTokens || 0;
   const totalCacheCreationTokens = gen.cacheCreationTokens || 0;
+  llmUsageIsActual = llmUsageIsActual && fixUsageIsActual;
 
   const promptHash = hashPrompt(gen.promptTextForHash);
 
@@ -461,6 +517,9 @@ async function runOneCombo({ experimentId, model, generationMode, selfcheckSampl
   }
   if (gen.retried) {
     reviewerNotes = (reviewerNotes ? reviewerNotes + " / " : "") + "generation: JSONパース失敗によりリトライ発生";
+  }
+  if (fixPerformed) {
+    reviewerNotes = (reviewerNotes ? reviewerNotes + " / " : "") + "llm_check: NG判定によりSonnetで修正生成(checked_outputはraw_outputと異なる)";
   }
 
   const record = {
@@ -491,8 +550,9 @@ async function runOneCombo({ experimentId, model, generationMode, selfcheckSampl
     local_check_result: localCheckResult,
     llm_check_performed: shouldRunLlmCheck,
     llm_check_result: llmCheckResult,
+    fix_performed: fixPerformed,
     llm_call_count: totalCallCount,
-    generation_call_count: gen.callCount,
+    generation_call_count: gen.callCount + (fixPerformed ? 1 : 0),
     generation_retried: gen.retried,
     cost_usd: Number(totalCostUsd.toFixed(6)),
     cost_usage_is_actual: llmUsageIsActual,
@@ -501,7 +561,7 @@ async function runOneCombo({ experimentId, model, generationMode, selfcheckSampl
     cache_read_tokens: totalCacheReadTokens,
     cache_creation_tokens: totalCacheCreationTokens,
     raw_output: JSON.stringify(rawOutputArr),
-    checked_output: JSON.stringify(rawOutputArr),
+    checked_output: JSON.stringify(checkedOutputArr),
     blind_label: computeBlindLabel(experimentId, c.raw.case_id, scenario.scenario_id, armNames, armName),
     rating: null,
     free_answer: null,
