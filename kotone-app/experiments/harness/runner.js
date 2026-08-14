@@ -583,6 +583,14 @@ async function runOneCombo({ experimentId, model, generationMode, selfcheckSampl
 
 // 代表1件(先頭のcase×scenario×arm)から実プロンプトを組み立てて概算する。
 // プロンプト長は入力データの違いによる変動が小さいため、代表1件×件数で近似する。
+//
+// 修正生成(fix)コストの見込み(A0 v2の実測を反映。exp-a0-compare-v2_report.md参照):
+// 見積もり関数はA0初回時、fix呼び出しの存在を考慮しておらず実測が上限(max)を
+// 超える原因になっていた。ここでは方式ごとのA0 v2実測NG率を「fixが発生する確率」の
+// 仮定値として使い、期待値ベースで1回分のfixコストを上乗せする(暫定値。要検証)。
+const ASSUMED_FIX_RATE_BY_MODE = { current: 0.75, unified: 0.375, "two-call": 0.375 };
+const FIX_MAX_TOKENS = 2000;
+
 function estimatePerRecordCost({ generationMode, model, inputs, scenario }) {
   const outputFractions = { min: 0.3, mid: 0.6, max: 1.0 };
   const bounds = { min: 0, mid: 0, max: 0 };
@@ -620,7 +628,17 @@ function estimatePerRecordCost({ generationMode, model, inputs, scenario }) {
     bounds[key] += costFor(MODEL_HAIKU, inTok, outTok);
   }
 
-  return { perRecordCost: bounds, callCountWithoutCheck: callCount };
+  // 修正生成(fix)コストの期待値上乗せ。プロンプトは元の6セクション(約combinedOutputEstimate文字)+
+  // NG指摘文(短い)なので、入力サイズをcombinedOutputEstimate相当、出力をFIX_MAX_TOKENS基準で見積もる
+  const fixRate = ASSUMED_FIX_RATE_BY_MODE[generationMode] ?? 0.5;
+  const fixPromptCharLen = combinedOutputEstimate + 300;
+  for (const key of Object.keys(bounds)) {
+    const inTok = estimateTokensFromChars(fixPromptCharLen);
+    const outTok = Math.ceil(FIX_MAX_TOKENS * outputFractions[key]);
+    bounds[key] += fixRate * costFor(MODEL_SONNET, inTok, outTok);
+  }
+
+  return { perRecordCost: bounds, callCountWithoutCheck: callCount, assumedFixRate: fixRate };
 }
 
 // キャッシュヒット時の想定コスト削減率(依頼書1-C)。
@@ -674,6 +692,12 @@ async function confirmOrExit({ totalRecords, generationMode, perRecordCost, self
     console.log(`--budget-cap: 未指定(実験単位の歯止めなし。月間利用上限のみが効く)`);
   }
   console.log(`※ この見積もりは代表1件のプロンプト長からの概算(1トークン≒1.8文字換算)。実測との誤差は実行後にログへ記録される。`);
+  console.log(`※ 修正生成(fix)コストは、A0 v2実測のNG率(${generationMode}=${(ASSUMED_FIX_RATE_BY_MODE[generationMode] ?? 0.5) * 100}%)を仮定した期待値として上乗せ済み。`);
+
+  if (args["estimate-only"] === "true") {
+    console.log(`\n--estimate-only が指定されているため、ここで終了します(LLM呼び出しは行っていません)。`);
+    process.exit(0);
+  }
 
   if (args.yes === "true") {
     console.log(`--yes が指定されているため、確認をスキップして実行します。\n`);
