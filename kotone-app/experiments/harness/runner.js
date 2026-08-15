@@ -5,7 +5,16 @@
 //     [--scenarios=normal_policy,problem_occurred] [--cases=case_001] \
 //     [--shuffle-pool=case_002,case_003] [--model=haiku|sonnet] \
 //     [--generation-mode=current|unified|two-call] [--budget-cap=10] \
-//     [--selfcheck-sample-rate=1.0] [--no-cache] [--yes] [--dry-run]
+//     [--selfcheck-sample-rate=1.0] [--no-cache] [--yes] [--dry-run] [--estimate-only] \
+//     [--temperature=0.5] [--repeat=5]
+//
+// --repeat=<N>: ノイズ切り分け実験用。1つの(case, scenario, arm)組み合わせをN回生成し、
+//   生成物同士のばらつきを見る(LLMサンプリングのばらつき自体を測定する用途)。
+//   複数組み合わせとの併用は不可(常に1組み合わせのみに限定される)。
+//
+// --temperature=<0.0-1.0>: 生成時のtemperature。既定は本番と同じ0.5。
+//   0にすると決定論的になり、ノイズ源としてのtemperatureを切り分けられる
+//   (本番の生成条件から離れるため、あくまで補助実験用)。
 //
 // --scenarios 未指定時は normal_policy と problem_occurred の2種のみ(設計書§8.2 Stage0向け)。
 // --cases 未指定時は case_001 のみ。--model 未指定時は haiku固定。
@@ -82,6 +91,9 @@ const MODEL_SONNET = "claude-sonnet-4-5";
 const K_VERSION = "k-harness-v0.1";
 const GENERATION_MODES = ["current", "unified", "two-call"];
 
+// ノイズ切り分け実験用(依頼書2)。既定は本番と同じ0.5。--temperatureで上書き可能。
+let TEMPERATURE = 0.5;
+
 const PRICING_FILE = JSON.parse(readFileSync(path.join(HARNESS_DIR, "pricing.json"), "utf8"));
 const PRICING = PRICING_FILE.models;
 const CACHE_WRITE_MULTIPLIER = PRICING_FILE.cache_write_multiplier ?? 1.25;
@@ -145,7 +157,7 @@ function usageFromData(data, promptCharLenForFallback, textForFallback) {
 
 async function callProxyWithUsage(prompt, model, maxTokens = 550) {
   const data = await callProxyRaw({
-    model, max_tokens: maxTokens, temperature: 0.5,
+    model, max_tokens: maxTokens, temperature: TEMPERATURE,
     messages: [{ role: "user", content: prompt }],
   });
   const text = data.content?.map(c => c.text || "").join("") || "";
@@ -167,7 +179,7 @@ async function callProxyWithUsageCached(prefixText, suffixText, model, maxTokens
     : [{ type: "text", text: (prefixText || "") + suffixText }];
 
   const data = await callProxyRaw({
-    model, max_tokens: maxTokens, temperature: 0.5,
+    model, max_tokens: maxTokens, temperature: TEMPERATURE,
     messages: [{ role: "user", content }],
   });
   const text = data.content?.map(c => c.text || "").join("") || "";
@@ -439,7 +451,7 @@ function hashStringToSeed(str) {
 // 1レコード分の実行
 // ---------------------------------------------------------------------------
 
-async function runOneCombo({ experimentId, model, generationMode, selfcheckSampleRate, useCache, c, shufflePool, scenario, armName, armNames }) {
+async function runOneCombo({ experimentId, model, generationMode, selfcheckSampleRate, useCache, c, shufflePool, scenario, armName, armNames, repeatIndex = null }) {
   const pool = shufflePool.filter(p => p.case_id !== c.raw.case_id);
   const contextInput = buildContextInput(c.raw.gender, c.raw.bloodType, scenario.scenario_id);
 
@@ -530,6 +542,8 @@ async function runOneCombo({ experimentId, model, generationMode, selfcheckSampl
     created_at: new Date().toISOString(),
     model_arm: armName,
     generation_mode: generationMode,
+    repeat_index: repeatIndex,
+    temperature: TEMPERATURE,
     k_version: K_VERSION,
     n_version: nVersionFor(resolved.n_input),
     integration_version: "n/a",
@@ -761,6 +775,24 @@ async function main() {
 
   const useCache = args["no-cache"] !== "true";
 
+  if (args.temperature != null) {
+    const t = Number(args.temperature);
+    if (Number.isNaN(t) || t < 0 || t > 1) {
+      console.error(`--temperatureは0.0〜1.0で指定してください: ${args.temperature}`);
+      process.exit(1);
+    }
+    TEMPERATURE = t;
+  }
+
+  // --repeat: ノイズ切り分け実験用(依頼書1)。同一条件(1case×1scenario×1arm)を
+  // N回生成し、生成物同士の差分からLLMサンプリングのばらつき(ノイズ)を測る。
+  // 複数case/scenario/armと組み合わせると意味が曖昧になるため、1組み合わせに限定する。
+  const repeat = args.repeat != null ? Number(args.repeat) : 1;
+  if (!Number.isInteger(repeat) || repeat < 1) {
+    console.error(`--repeatは1以上の整数で指定してください: ${args.repeat}`);
+    process.exit(1);
+  }
+
   // --scenarios未指定時はStage0デフォルト(設計書§8.2): 11種フルはまだ回さない
   const scenarioIds = args.scenarios
     ? splitCsv(args.scenarios)
@@ -800,14 +832,19 @@ async function main() {
     : cases.map(c => ({ case_id: c.raw.case_id, n_input: c.legacyNInput }));
 
   const isDryRun = args["dry-run"] === "true";
-  const totalRecords = cases.length * scenarioIds.length * armNames.length;
+  const baseCombos = cases.length * scenarioIds.length * armNames.length;
+  if (repeat > 1 && baseCombos !== 1) {
+    console.error(`--repeatは1つの(case, scenario, arm)組み合わせに限定してください(現在: ${baseCombos}通り)。`);
+    process.exit(1);
+  }
+  const totalRecords = baseCombos * repeat;
 
   // 重複実行の検知(依頼者指摘対応)。同一experiment_idの完了ファイルが既に存在する場合、
   // これから生成しようとしている(case_id, scenario_id, model_arm, generation_mode)の
   // 組み合わせが既存レコードと衝突していないか確認する。衝突があれば、意図しない
   // 二重計上(重複レコード)を防ぐため既定でエラー終了する。意図的な再実行の場合は
-  // --allow-duplicatesを付ける。
-  if (!isDryRun) {
+  // --allow-duplicatesを付ける。--repeat>1の場合は同一キーの繰り返しが前提のためスキップする。
+  if (!isDryRun && repeat === 1) {
     const finalPath = path.join(RUNS_DIR, `${experimentId}.jsonl`);
     if (existsSync(finalPath)) {
       const existingLines = readFileSync(finalPath, "utf8").trim().split("\n").filter(Boolean);
@@ -843,14 +880,16 @@ async function main() {
 
   if (isDryRun) {
     console.log(`\n[dry-run] 実際のLLM呼び出しは行いません。`);
-    console.log(`[dry-run] 生成予定レコード数: ${cases.length}ケース × ${scenarioIds.length}シナリオ × ${armNames.length}arm = ${totalRecords}件`);
+    console.log(`[dry-run] 生成予定レコード数: ${cases.length}ケース × ${scenarioIds.length}シナリオ × ${armNames.length}arm${repeat > 1 ? ` × repeat=${repeat}` : ""} = ${totalRecords}件`);
     console.log(`[dry-run] 組み合わせ一覧:`);
     let i = 0;
     for (const c of cases) {
       for (const scenarioId of scenarioIds) {
         for (const armName of armNames) {
-          i++;
-          console.log(`  [${i}] ${c.raw.case_id} / ${scenarioId} / ${armName}`);
+          for (let rep = 0; rep < repeat; rep++) {
+            i++;
+            console.log(`  [${i}] ${c.raw.case_id} / ${scenarioId} / ${armName}${repeat > 1 ? ` / repeat#${rep}` : ""}`);
+          }
         }
       }
     }
@@ -889,20 +928,23 @@ async function main() {
     for (const scenarioId of scenarioIds) {
       const scenario = scenarioMap.get(scenarioId);
       for (const armName of armNames) {
-        const record = await runOneCombo({
-          experimentId, model, generationMode, selfcheckSampleRate, useCache,
-          c, shufflePool, scenario, armName, armNames,
-        });
+        for (let repeatIndex = 0; repeatIndex < repeat; repeatIndex++) {
+          const record = await runOneCombo({
+            experimentId, model, generationMode, selfcheckSampleRate, useCache,
+            c, shufflePool, scenario, armName, armNames,
+            repeatIndex: repeat > 1 ? repeatIndex : null,
+          });
 
-        appendRecord(RUNS_DIR, null, record, { fileName: writeFileName });
-        count++;
-        cumulativeCostUsd += record.cost_usd;
+          appendRecord(RUNS_DIR, null, record, { fileName: writeFileName });
+          count++;
+          cumulativeCostUsd += record.cost_usd;
 
-        console.log(`[${count}/${totalRecords}] ${c.raw.case_id} / ${scenarioId} / ${armName} -> 記録完了 (累積概算 $${cumulativeCostUsd.toFixed(4)})`);
+          console.log(`[${count}/${totalRecords}] ${c.raw.case_id} / ${scenarioId} / ${armName}${repeat > 1 ? ` / repeat#${repeatIndex}` : ""} -> 記録完了 (累積概算 $${cumulativeCostUsd.toFixed(4)})`);
 
-        if (budgetCap != null && cumulativeCostUsd >= budgetCap) {
-          stoppedByBudget = true;
-          break outer;
+          if (budgetCap != null && cumulativeCostUsd >= budgetCap) {
+            stoppedByBudget = true;
+            break outer;
+          }
         }
       }
     }
