@@ -3,13 +3,13 @@
 // これが無いと「変更で精度が上がったか」を後から判定できない。
 export const VERSIONS = {
   // 辞書系（src/data/）
-  kotodamaL1: "1.2",        // L1_dictionary.js: KOTODAMA_L1
-  surnameInterface: "0.2",  // L1_dictionary.js: SURNAME_INTERFACE（15音追加・要検証）
+  kotodamaL1: "1.3",        // L1_dictionary.js: KOTODAMA_L1（1.3: 特殊音の上乗せmodifierを追加）
+  surnameInterface: "0.3",  // L1_dictionary.js: SURNAME_INTERFACE（0.3: 濁音・半濁音の上乗せ）
   numerologyL1: "1.1",      // numerology.js: NUMEROLOGY_L1（direction/motion/modifier削除済み）
   numerologyAdjust: "0.1",  // numerology.js: NUMEROLOGY_ADJUST
 
   // エンジン系（src/utils/）
-  engine: "direction_dist_v1", // kotodamaEngine.js: 方向を分布で保持する版（発見C対応）
+  engine: "special_sounds_v1", // kotodamaEngine.js: 特殊音（濁音・半濁音・拗音・促音・長音）整理版。前版 direction_dist_v1
 
   // プロンプト系（src/data/prompts.js）
   prompt: "2026-08-05",     // 書き出し自由化・セクション分離・キャッチ注入
