@@ -1,24 +1,50 @@
-import { KOTODAMA_L1, DAKUON_MAP, SURNAME_INTERFACE } from '../data/L1_dictionary.js';
+import {
+  KOTODAMA_L1, DAKUON_MAP, SURNAME_INTERFACE,
+  HANDAKUON, GLIDE_MAP, SPECIAL_SOUND_OVERLAY, SURNAME_OVERLAY,
+} from '../data/L1_dictionary.js';
 
 const NATURAL_ORDER = ["起点", "拡散", "収束", "接続", "切断", "保持"];
 
+// 1文字を「清音の基底音」と「上乗せmodifier」に分ける
+function splitBase(ch) {
+  const base = DAKUON_MAP[ch] || ch;
+  const overlay = [];
+  if (HANDAKUON.has(ch)) overlay.push(SPECIAL_SOUND_OVERLAY.handakuon);
+  else if (DAKUON_MAP[ch]) overlay.push(SPECIAL_SOUND_OVERLAY.dakuon);
+  return { base, overlay };
+}
+
+// 名前を音に分解する（v1.3: 特殊音の整理）
+//  濁音・半濁音: 清音の意味を使い、overlayに「重量」「弾み」を付ける
+//  拗音:         基底音0.5＋小書き文字の音0.5、基底音に「軽快」
+//  促音(っ):     markOnly要素として「瞬発」だけを足す
+//  長音(ー):     直前の音の重みを+0.5し、markOnly要素として「伸長」を足す
+// 各要素: { ch, weight, overlay: string[], markOnly?: true }
 export function decomposeSounds(name) {
   const result = [];
   for (let i = 0; i < name.length; i++) {
-    let ch = name[i];
+    const ch = name[i];
     const next = name[i + 1];
-    if (next && "ゃゅょぁぃぅぇぉ".includes(next)) {
-      let baseChar = DAKUON_MAP[ch] || ch;
-      result.push({ ch: baseChar, weight: 0.8 });
-      const glideMap = { "ゃ":"や","ゅ":"ゆ","ょ":"よ","ぁ":"あ","ぃ":"い","ぅ":"う","ぇ":"え","ぉ":"お" };
-      const glideChar = glideMap[next];
-      if (glideChar) result.push({ ch: glideChar, weight: 0.2 });
+    if (next && GLIDE_MAP[next]) {
+      const { base, overlay } = splitBase(ch);
+      overlay.push(SPECIAL_SOUND_OVERLAY.youon);
+      result.push({ ch: base, weight: 0.5, overlay });
+      result.push({ ch: GLIDE_MAP[next], weight: 0.5, overlay: [] });
       i++;
       continue;
     }
-    if (ch === "っ" || ch === "ー") continue;
-    if (DAKUON_MAP[ch]) ch = DAKUON_MAP[ch];
-    result.push({ ch, weight: 1.0 });
+    if (ch === "っ") {
+      result.push({ ch, weight: 1.0, overlay: [SPECIAL_SOUND_OVERLAY.sokuon], markOnly: true });
+      continue;
+    }
+    if (ch === "ー") {
+      const prev = [...result].reverse().find(s => !s.markOnly);
+      if (prev) prev.weight += 0.5;
+      result.push({ ch, weight: 1.0, overlay: [SPECIAL_SOUND_OVERLAY.chouon], markOnly: true });
+      continue;
+    }
+    const { base, overlay } = splitBase(ch);
+    result.push({ ch: base, weight: 1.0, overlay });
   }
   return result;
 }
@@ -50,13 +76,23 @@ export function getKotodamaL1(name) {
     modifier: {},
   };
   let totalWeight = 0;
-  for (const { ch, weight } of sounds) {
+  for (const { ch, weight, overlay = [], markOnly } of sounds) {
+    if (markOnly) {
+      // 促音・長音: 方向・motionは持たず、modifierだけを足す（confidenceの計算にも含めない）
+      for (const mod of overlay) {
+        features.modifier[mod] = (features.modifier[mod] || 0) + weight;
+      }
+      continue;
+    }
     const def = KOTODAMA_L1[ch];
     if (!def) continue;
     counter[ch] = (counter[ch] || 0) + 1;
     const decay = Math.pow(0.5, counter[ch] - 1);
     const w = decay * weight;
     totalWeight += w;
+    for (const mod of overlay) {
+      features.modifier[mod] = (features.modifier[mod] || 0) + w;
+    }
     if (def.direction === "内向シフト") {
       features.direction.内向 += 0.3 * w;
       continue;
@@ -144,14 +180,24 @@ export function getSurnameInterface(lastName) {
   const sounds = decomposeSounds(lastName);
   const counter = {};
   const scores = { scale: 0, openness: 0, stability: 0, visibility: 0, constraint: 0 };
-  for (const { ch, weight } of sounds) {
-    const def = SURNAME_INTERFACE[ch];
-    if (!def) continue;
+  for (const { ch, weight, overlay = [], markOnly } of sounds) {
+    if (markOnly) continue;
     counter[ch] = (counter[ch] || 0) + 1;
     const decay = Math.pow(0.5, counter[ch] - 1);
     const w = decay * weight;
-    for (const [axis, value] of Object.entries(def)) {
-      scores[axis] += value * w;
+    const def = SURNAME_INTERFACE[ch];
+    if (def) {
+      for (const [axis, value] of Object.entries(def)) {
+        scores[axis] += value * w;
+      }
+    }
+    // 濁音・半濁音の上乗せ（基底音が姓辞書に無い場合も適用する）
+    for (const mod of overlay) {
+      const add = SURNAME_OVERLAY[mod];
+      if (!add) continue;
+      for (const [axis, value] of Object.entries(add)) {
+        scores[axis] += value * w;
+      }
     }
   }
   const labelize = v => {
