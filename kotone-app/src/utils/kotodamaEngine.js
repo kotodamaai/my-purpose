@@ -212,11 +212,14 @@ export function getSurnameInterface(lastName) {
   const sounds = decomposeSounds(lastName);
   const counter = {};
   const scores = { scale: 0, openness: 0, stability: 0, visibility: 0, constraint: 0 };
-  for (const { ch, weight, overlay = [], markOnly } of sounds) {
+  let totalWeight = 0;
+  for (const { ch, weight, overlay = [], markOnly, pos } of sounds) {
     if (markOnly) continue;
     counter[ch] = (counter[ch] || 0) + 1;
     const decay = Math.pow(0.5, counter[ch] - 1);
-    const w = decay * weight;
+    // v1.4: 姓も頭の音ほど重く（名と同じ2/3ずつ）
+    const w = decay * weight * positionWeight(pos);
+    totalWeight += w;
     const def = SURNAME_INTERFACE[ch];
     if (def) {
       for (const [axis, value] of Object.entries(def)) {
@@ -232,12 +235,18 @@ export function getSurnameInterface(lastName) {
       }
     }
   }
+  // v1.4: 合計ではなく重み付き平均で見る（文字数で強さが決まらないように）。
+  // 「おの／おおの／おおのはら」のような同系統の姓が共通の芯を持ち、語尾が少し色を足す
+  if (totalWeight > 0) {
+    for (const axis of Object.keys(scores)) scores[axis] /= totalWeight;
+  }
+  // 目盛りは平均化に合わせて旧値の約1/3（よくある姓82件でラベル分布が旧版に近くなるよう校正）
   const labelize = v => {
-    if (v >= 3.0) return "very high";
-    if (v >= 1.5) return "high";
-    if (v >= 0.5) return "medium";
-    if (v >= -0.5) return "neutral";
-    if (v >= -1.5) return "low";
+    if (v >= 1.0) return "very high";
+    if (v >= 0.5) return "high";
+    if (v >= 0.15) return "medium";
+    if (v >= -0.15) return "neutral";
+    if (v >= -0.5) return "low";
     return "very low";
   };
   const labels = {};
