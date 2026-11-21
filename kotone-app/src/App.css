@@ -1,14 +1,16 @@
 :root {
-  --bg: #f4f1ea;
-  --bg-panel: #fafaf6;
+  /* Ⅰ版パレット「藤と墨」：藤色の淡い地に墨の文字、差し色に藤紫と青碧 */
+  --bg: #e8e3f1;
+  --bg-panel: #f2eff8;
   --bg-card: #ffffff;
-  --ink: #1a1a1a;
-  --ink-2: #4a4a4a;
-  --ink-3: #8a8a8a;
-  --line: #d8d2c5;
-  --accent: #b8593a;
-  --accent-2: #2c4a52;
-  --accent-3: #8a7c4f;
+  --ink: #1e1b2b;
+  --ink-2: #4a4659;
+  --ink-3: #8b879a;
+  --line: #d2cbe0;
+  --accent: #6a55a8;
+  --accent-2: #2e6670;
+  --accent-3: #8a7fb5;
+  --accent-soft: #efeaf8;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -33,7 +35,7 @@ body {
 }
 
 .top-logo {
-  font-size: 13px;
+  font-size: 15px;
   letter-spacing: 0.4em;
   color: var(--accent-3);
   margin-bottom: 24px;
@@ -41,7 +43,7 @@ body {
 }
 
 .top-title {
-  font-size: 42px;
+  font-size: 44px;
   font-weight: 600;
   letter-spacing: 0.15em;
   color: var(--ink);
@@ -49,7 +51,7 @@ body {
 }
 
 .top-catch {
-  font-size: 15px;
+  font-size: 17px;
   color: var(--ink-2);
   letter-spacing: 0.05em;
   line-height: 2;
@@ -63,7 +65,7 @@ body {
   background: var(--ink);
   color: var(--bg);
   border: none;
-  font-size: 15px;
+  font-size: 17px;
   font-family: inherit;
   letter-spacing: 0.15em;
   cursor: pointer;
@@ -74,7 +76,7 @@ body {
 
 .top-note {
   margin-top: 32px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--ink-3);
   letter-spacing: 0.05em;
   font-style: italic;
@@ -93,7 +95,7 @@ body {
 }
 
 .input-header .logo-small {
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.3em;
   color: var(--accent-3);
   margin-bottom: 8px;
@@ -101,7 +103,7 @@ body {
 }
 
 .input-header h2 {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 600;
   letter-spacing: 0.1em;
   color: var(--ink);
@@ -126,7 +128,7 @@ body {
 
 .field label {
   display: block;
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.15em;
   color: var(--ink-3);
   margin-bottom: 6px;
@@ -144,7 +146,7 @@ body {
   padding: 10px 12px;
   border: 1px solid var(--line);
   background: var(--bg-panel);
-  font-size: 16px;
+  font-size: 18px;
   font-family: inherit;
   color: var(--ink);
   border-radius: 0;
@@ -179,7 +181,7 @@ body {
   transform: translateY(-50%);
   color: var(--ink-3);
   pointer-events: none;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .field-divider {
@@ -194,7 +196,7 @@ body {
   background: var(--ink);
   color: var(--bg);
   border: none;
-  font-size: 15px;
+  font-size: 17px;
   font-family: inherit;
   letter-spacing: 0.2em;
   cursor: pointer;
@@ -206,11 +208,11 @@ body {
 .submit-btn:disabled { background: var(--ink-3); cursor: not-allowed; }
 
 .error-msg {
-  background: #ffe6e0;
+  background: var(--accent-soft);
   border: 1px solid var(--accent);
   color: var(--accent);
   padding: 10px 14px;
-  font-size: 13px;
+  font-size: 15px;
   margin-bottom: 16px;
 }
 
@@ -218,7 +220,7 @@ body {
   display: block;
   text-align: center;
   margin-top: 24px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--ink-3);
   cursor: pointer;
   letter-spacing: 0.1em;
@@ -240,7 +242,7 @@ body {
 }
 
 .result-header .logo-small {
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.3em;
   color: var(--accent-3);
   margin-bottom: 8px;
@@ -248,7 +250,7 @@ body {
 }
 
 .result-name {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: 0.1em;
   color: var(--ink);
@@ -256,7 +258,7 @@ body {
 }
 
 .result-date {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--ink-3);
   letter-spacing: 0.05em;
 }
@@ -273,7 +275,7 @@ body {
   padding: 10px 20px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--line);
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.2em;
   color: var(--ink-3);
   text-transform: uppercase;
@@ -288,11 +290,11 @@ body {
 .catch-section .section-body {
   text-align: center;
   padding: 32px 24px;
-  background: linear-gradient(180deg, #fefcf6 0%, #faf6ec 100%);
+  background: linear-gradient(180deg, #faf9fd 0%, #f1edf8 100%);
 }
 
 .catch-text {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 600;
   color: var(--accent);
   line-height: 1.7;
@@ -301,7 +303,7 @@ body {
 
 /* 本文 */
 .section-text {
-  font-size: 15px;
+  font-size: 17px;
   line-height: 2.0;
   color: var(--ink);
   white-space: pre-wrap;
@@ -315,7 +317,7 @@ body {
   gap: 10px;
   padding: 20px 24px;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: 15px;
   font-style: italic;
 }
 
@@ -339,7 +341,7 @@ body {
 
 .model-tag {
   display: inline-block;
-  font-size: 9px;
+  font-size: 11px;
   font-family: "SF Mono", monospace;
   background: var(--accent-2);
   color: #fff;
@@ -351,13 +353,13 @@ body {
 
 .error-section {
   color: var(--accent);
-  font-size: 13px;
+  font-size: 15px;
   padding: 16px 24px;
 }
 
 .result-footer-note {
   text-align: center;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--ink-3);
   margin-top: 32px;
   padding: 20px;
@@ -373,7 +375,7 @@ body {
   background: transparent;
   color: var(--ink-2);
   border: 1px solid var(--line);
-  font-size: 13px;
+  font-size: 15px;
   font-family: inherit;
   letter-spacing: 0.15em;
   cursor: pointer;
@@ -397,7 +399,7 @@ body {
 }
 
 .verify-title {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: 0.1em;
   color: var(--ink);
@@ -405,7 +407,7 @@ body {
 }
 
 .verify-lead {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--ink-3);
   line-height: 1.8;
 }
@@ -415,14 +417,14 @@ body {
 }
 
 .verify-label {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--ink);
   letter-spacing: 0.05em;
   margin-bottom: 6px;
 }
 
 .verify-sub {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--ink-3);
   line-height: 1.8;
   margin-bottom: 12px;
@@ -469,14 +471,14 @@ body {
 .score-value {
   min-width: 62px;
   text-align: right;
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 600;
   color: var(--accent);
   letter-spacing: 0.02em;
 }
 
 .score-unit {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--ink-3);
   margin-left: 3px;
   font-weight: 400;
@@ -485,7 +487,7 @@ body {
 .scale-ends {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--ink-3);
   letter-spacing: 0.05em;
   margin-top: 6px;
@@ -501,13 +503,13 @@ body {
 
 .sr-item {
   padding: 12px 0;
-  border-bottom: 1px solid #efece4;
+  border-bottom: 1px solid #ebe8f2;
 }
 
 .sr-item:last-child { border-bottom: none; }
 
 .sr-text {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--ink);
   line-height: 1.7;
   margin-bottom: 10px;
@@ -525,7 +527,7 @@ body {
   border: 1px solid var(--line);
   color: var(--ink-3);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 15px;
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -545,7 +547,7 @@ body {
   border: 1px solid var(--line);
   background: var(--bg-panel);
   font-family: inherit;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.8;
   color: var(--ink);
   resize: vertical;
@@ -566,7 +568,7 @@ body {
   background: var(--ink);
   color: var(--bg);
   border: none;
-  font-size: 14px;
+  font-size: 16px;
   font-family: inherit;
   letter-spacing: 0.2em;
   cursor: pointer;
@@ -579,19 +581,46 @@ body {
   display: block;
   text-align: center;
   margin-top: 12px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--accent-3);
   letter-spacing: 0.05em;
 }
 
 /* ===== RESPONSIVE ===== */
 @media (max-width: 480px) {
-  .top-title { font-size: 32px; }
+  .top-title { font-size: 34px; }
   .field-group { grid-template-columns: 1fr; }
   .date-row { grid-template-columns: 1fr 1fr 1fr; }
   .input-form { padding: 24px 20px; }
   .section-body { padding: 20px 16px; }
   .verify-panel { padding: 22px 16px; }
   .sr-scale { gap: 6px; }
-  .score-value { font-size: 20px; min-width: 54px; }
+  .score-value { font-size: 22px; min-width: 54px; }
 }
+
+/* ===== Ⅰ版 ===== */
+.beta-badge {
+  display: inline-block;
+  margin-left: 0.4em;
+  padding: 0 0.4em;
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  color: var(--accent);
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.42em;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.5;
+  vertical-align: super;
+}
+
+.logo-small .beta-badge { font-size: 0.95em; vertical-align: baseline; padding: 0 0.3em; }
+
+/* 音の波（トップ画面の飾り） */
+.top-wave {
+  width: 160px;
+  height: 24px;
+  margin: 4px auto 28px;
+  display: block;
+}
+.top-wave path { fill: none; stroke: var(--accent-3); stroke-width: 1.2; }
