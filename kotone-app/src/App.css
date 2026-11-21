@@ -1,5 +1,5 @@
 :root {
-  /* β版パレット「藤と墨」：藤色の淡い地に墨の文字、差し色に藤紫と青碧 */
+  /* Ⅰ版パレット「藤と墨」：藤色の淡い地に墨の文字、差し色に藤紫と青碧 */
   --bg: #e8e3f1;
   --bg-panel: #f2eff8;
   --bg-card: #ffffff;
@@ -598,7 +598,7 @@ body {
   .score-value { font-size: 22px; min-width: 54px; }
 }
 
-/* ===== β版 ===== */
+/* ===== Ⅰ版 ===== */
 .beta-badge {
   display: inline-block;
   margin-left: 0.4em;

@@ -154,7 +154,7 @@ export default function ResultScreen({ data, onRestart }) {
   return (
     <div className="result-screen">
       <div className="result-header">
-        <div className="logo-small">KOTONE · MY PURPOSE<span className="beta-badge">β</span></div>
+        <div className="logo-small">KOTONE · MY PURPOSE<span className="beta-badge">Ⅰ</span></div>
         <div className="result-name">{displayName || firstName}</div>
         <div className="result-date">{displayDate}生まれ</div>
       </div>
