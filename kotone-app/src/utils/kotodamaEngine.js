@@ -1,35 +1,50 @@
 import {
   KOTODAMA_L1, DAKUON_MAP, SURNAME_INTERFACE,
   HANDAKUON, GLIDE_MAP, SPECIAL_SOUND_OVERLAY, SURNAME_OVERLAY,
+  DAKUON_AMPLIFY, INTERVAL_PERFECT_FIFTH,
 } from '../data/L1_dictionary.js';
 
 const NATURAL_ORDER = ["起点", "拡散", "収束", "接続", "切断", "保持"];
 
 // 1文字を「清音の基底音」と「上乗せmodifier」に分ける
+// v1.4: 濁音はその音自身の重みを完全4度（4/3）で増幅する
 function splitBase(ch) {
   const base = DAKUON_MAP[ch] || ch;
   const overlay = [];
+  let amp = 1.0;
   if (HANDAKUON.has(ch)) overlay.push(SPECIAL_SOUND_OVERLAY.handakuon);
-  else if (DAKUON_MAP[ch]) overlay.push(SPECIAL_SOUND_OVERLAY.dakuon);
-  return { base, overlay };
+  else if (DAKUON_MAP[ch]) { overlay.push(SPECIAL_SOUND_OVERLAY.dakuon); amp = DAKUON_AMPLIFY; }
+  return { base, overlay, amp };
 }
 
 // 名前を音に分解する（v1.3: 特殊音の整理）
-//  濁音・半濁音: 清音の意味を使い、overlayに「重量」「弾み」を付ける
+//  濁音:         清音の意味の重みを4/3倍（完全4度）に増幅し、overlayに「重量」を付ける（v1.4）
+//  半濁音:       清音の意味を使い、overlayに「弾み」を付ける
 //  拗音:         基底音0.5＋小書き文字の音0.5、基底音に「軽快」
 //  促音(っ):     markOnly要素として「瞬発」だけを足す
 //  長音(ー):     直前の音の重みを+0.5し、markOnly要素として「伸長」を足す
-// 各要素: { ch, weight, overlay: string[], markOnly?: true }
-export function decomposeSounds(name) {
+// 各要素: { ch, weight, overlay: string[], pos?: number, markOnly?: true }
+//  pos: 名前の頭から数えた音の位置（0始まり）。拗音は基底音と小書き文字で同じ位置、促音・長音は位置を持たない
+// v1.4: カタカナをひらがなに変換し、空白を除く（芸名・商品名などカタカナ入力に対応）
+export function normalizeKana(text) {
+  return String(text || "")
+    .replace(/[\s\u3000]/g, "")
+    .replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+}
+
+export function decomposeSounds(rawName) {
+  const name = normalizeKana(rawName);
   const result = [];
+  let pos = 0;
   for (let i = 0; i < name.length; i++) {
     const ch = name[i];
     const next = name[i + 1];
     if (next && GLIDE_MAP[next]) {
-      const { base, overlay } = splitBase(ch);
+      const { base, overlay, amp } = splitBase(ch);
       overlay.push(SPECIAL_SOUND_OVERLAY.youon);
-      result.push({ ch: base, weight: 0.5, overlay });
-      result.push({ ch: GLIDE_MAP[next], weight: 0.5, overlay: [] });
+      result.push({ ch: base, weight: 0.5 * amp, overlay, pos });
+      result.push({ ch: GLIDE_MAP[next], weight: 0.5, overlay: [], pos });
+      pos++;
       i++;
       continue;
     }
@@ -43,10 +58,22 @@ export function decomposeSounds(name) {
       result.push({ ch, weight: 1.0, overlay: [SPECIAL_SOUND_OVERLAY.chouon], markOnly: true });
       continue;
     }
-    const { base, overlay } = splitBase(ch);
-    result.push({ ch: base, weight: 1.0, overlay });
+    const { base, overlay, amp } = splitBase(ch);
+    result.push({ ch: base, weight: 1.0 * amp, overlay, pos });
+    pos++;
   }
   return result;
+}
+
+// 名の位置の重み（v1.4）。頭の音ほど個性を担い、語尾（こ・み・お・すけ・たろう等）は名付けの型として軽く効かせる
+// 頭から完全5度の逆数（2/3）ずつ減衰：1 → 0.667 → 0.444 → 0.296 → 0.198 …。姓（インターフェース）には適用しない
+export const NAME_POSITION_RATIO = 1 / INTERVAL_PERFECT_FIFTH;
+// 名のプロセス（動き）として採用する最大数（v1.4）。多すぎると「全部持ち」になり個性が消えるため
+export const MAX_PROCESS_MOTIONS = 3;
+
+function positionWeight(pos) {
+  if (pos === undefined) return 1.0;
+  return Math.pow(NAME_POSITION_RATIO, pos);
 }
 
 // 拮抗判定の閾値(暫定値。実データでの感度分析待ち。KOTONE_L2非損失表現設計_v1_0 3.2節と対応)
@@ -76,7 +103,7 @@ export function getKotodamaL1(name) {
     modifier: {},
   };
   let totalWeight = 0;
-  for (const { ch, weight, overlay = [], markOnly } of sounds) {
+  for (const { ch, weight, overlay = [], markOnly, pos } of sounds) {
     if (markOnly) {
       // 促音・長音: 方向・motionは持たず、modifierだけを足す（confidenceの計算にも含めない）
       for (const mod of overlay) {
@@ -88,8 +115,8 @@ export function getKotodamaL1(name) {
     if (!def) continue;
     counter[ch] = (counter[ch] || 0) + 1;
     const decay = Math.pow(0.5, counter[ch] - 1);
-    const w = decay * weight;
-    totalWeight += w;
+    totalWeight += decay * weight; // 根拠の量（confidence用）は位置で減らさない
+    const w = decay * weight * positionWeight(pos);
     for (const mod of overlay) {
       features.modifier[mod] = (features.modifier[mod] || 0) + w;
     }
@@ -117,13 +144,26 @@ export function getKotodamaL1(name) {
   // 後方互換：direction は dominant_direction のまま(既存の消費箇所を壊さない)
   const direction = derived.dominant_direction;
 
+  // 閾値0.5以上の動きのうち、得点の高い上位MAX_PROCESS_MOTIONS個を採用し、名前に現れた順に並べる（v1.4）
+  // 同点のときは名前の頭に近い音の動きを優先する
+  const firstSeen = {};
+  sounds.forEach(({ ch }, idx) => {
+    for (const m of KOTODAMA_L1[ch]?.motion || []) if (firstSeen[m] === undefined) firstSeen[m] = idx;
+  });
+  const selected = new Set(
+    Object.entries(features.motion)
+      .filter(([, v]) => v >= 0.5)
+      .sort((a, b) => (b[1] - a[1]) || (firstSeen[a[0]] - firstSeen[b[0]]))
+      .slice(0, MAX_PROCESS_MOTIONS)
+      .map(([m]) => m)
+  );
   const motionOrdered = [];
   const motionSeen = new Set();
   for (const { ch } of sounds) {
     const def = KOTODAMA_L1[ch];
     if (!def) continue;
     for (const m of def.motion) {
-      if (!motionSeen.has(m) && (features.motion[m] || 0) >= 0.5) {
+      if (!motionSeen.has(m) && selected.has(m)) {
         motionSeen.add(m);
         motionOrdered.push(m);
       }
@@ -180,11 +220,14 @@ export function getSurnameInterface(lastName) {
   const sounds = decomposeSounds(lastName);
   const counter = {};
   const scores = { scale: 0, openness: 0, stability: 0, visibility: 0, constraint: 0 };
-  for (const { ch, weight, overlay = [], markOnly } of sounds) {
+  let totalWeight = 0;
+  for (const { ch, weight, overlay = [], markOnly, pos } of sounds) {
     if (markOnly) continue;
     counter[ch] = (counter[ch] || 0) + 1;
     const decay = Math.pow(0.5, counter[ch] - 1);
-    const w = decay * weight;
+    // v1.4: 姓も頭の音ほど重く（名と同じ2/3ずつ）
+    const w = decay * weight * positionWeight(pos);
+    totalWeight += w;
     const def = SURNAME_INTERFACE[ch];
     if (def) {
       for (const [axis, value] of Object.entries(def)) {
@@ -200,12 +243,18 @@ export function getSurnameInterface(lastName) {
       }
     }
   }
+  // v1.4: 合計ではなく重み付き平均で見る（文字数で強さが決まらないように）。
+  // 「おの／おおの／おおのはら」のような同系統の姓が共通の芯を持ち、語尾が少し色を足す
+  if (totalWeight > 0) {
+    for (const axis of Object.keys(scores)) scores[axis] /= totalWeight;
+  }
+  // 目盛りは平均化に合わせて旧値の約1/3（よくある姓82件でラベル分布が旧版に近くなるよう校正）
   const labelize = v => {
-    if (v >= 3.0) return "very high";
-    if (v >= 1.5) return "high";
-    if (v >= 0.5) return "medium";
-    if (v >= -0.5) return "neutral";
-    if (v >= -1.5) return "low";
+    if (v >= 1.0) return "very high";
+    if (v >= 0.5) return "high";
+    if (v >= 0.15) return "medium";
+    if (v >= -0.15) return "neutral";
+    if (v >= -0.5) return "low";
     return "very low";
   };
   const labels = {};

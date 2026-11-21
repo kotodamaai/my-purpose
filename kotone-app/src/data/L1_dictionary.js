@@ -1,4 +1,4 @@
-// 言霊L1辞書 v1.3（v1.3: 濁音・半濁音・拗音・促音・長音の上乗せ定義を追加。50音本体の定義は変更なし）
+// 言霊L1辞書 v1.4（v1.4: 辞書本体は変更なし。濁音の増幅(4/3)を追加、名の位置の重み(2/3ずつ)とプロセス上限はkotodamaEngine.js側で適用 / v1.3: 濁音・半濁音・拗音・促音・長音の上乗せ定義を追加。50音本体の定義は変更なし）
 export const KOTODAMA_L1 = {
   "あ": { direction: "外向", motion: ["起点", "拡散"], modifier: [] },
   "い": { direction: "内向", motion: ["収束"], modifier: [] },
@@ -55,6 +55,7 @@ export const DAKUON_MAP = {
   "だ":"た","ぢ":"ち","づ":"つ","で":"て","ど":"と",
   "ば":"は","び":"ひ","ぶ":"ふ","べ":"へ","ぼ":"ほ",
   "ぱ":"は","ぴ":"ひ","ぷ":"ふ","ぺ":"へ","ぽ":"ほ",
+  "ゔ":"う", // v1.4: カタカナ「ヴ」の変換先
 };
 
 // 半濁音（ぱ行）。DAKUON_MAPでは「は行」に寄せるが、上乗せは濁音と区別する
@@ -73,6 +74,13 @@ export const SPECIAL_SOUND_OVERLAY = {
   sokuon: "瞬発",     // 促音：ためてから一気に出す
   chouon: "伸長",     // 長音：響きを伸ばす
 };
+
+// 音の比率（純正律）による係数（v1.4）
+//  完全4度 4:3 … 濁音は清音の働きを「強く・濃く・荒く・重く・大きく」増幅する
+//  完全5度 3:2 … 名の位置の重みは頭から 2/3 倍ずつ減衰する（kotodamaEngine.js）
+export const INTERVAL_PERFECT_FOURTH = 4 / 3;
+export const INTERVAL_PERFECT_FIFTH = 3 / 2;
+export const DAKUON_AMPLIFY = INTERVAL_PERFECT_FOURTH;
 
 // 姓インターフェースへの上乗せ（v0.3）。拗音・促音・長音は姓の見え方には影響させない
 export const SURNAME_OVERLAY = {
