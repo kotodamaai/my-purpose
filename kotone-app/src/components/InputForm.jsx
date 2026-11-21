@@ -8,17 +8,17 @@ import {
 } from '../utils/kotodamaEngine';
 import { getNumerologyL1, getNumerologyAdjustment } from '../utils/numerologyEngine';
 
-export default function InputForm({ onSubmit, onBack }) {
-  const [form, setForm] = useState({
-    lastName: '',
-    firstName: '',
-    year: '',
-    month: '',
-    day: '',
-    gender: '',
-    bloodType: '',
-    birthdayEstimated: false,
-  });
+export default function InputForm({ initial, onSubmit, onBack }) {
+  const [form, setForm] = useState(() => ({
+    lastName: initial?.lastName ?? '',
+    firstName: initial?.firstName ?? '',
+    year: initial?.year != null ? String(initial.year) : '',
+    month: initial?.month != null ? String(initial.month) : '',
+    day: initial?.day != null ? String(initial.day) : '',
+    gender: initial?.gender ?? '',
+    bloodType: initial?.bloodType ?? '',
+    birthdayEstimated: initial?.birthdayEstimated ?? false,
+  }));
   const [error, setError] = useState('');
 
   function handleChange(e) {

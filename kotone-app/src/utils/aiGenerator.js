@@ -80,6 +80,9 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
         usedModel = "Sonnet修";
       }
 
+      // 構造指示の番号（①②③）が本文に漏れたら取り除く
+      if (text) text = text.replace(/^[ \t\u3000]*[①②③④⑤][ \t\u3000]*/gm, '');
+
       // キャッチコピー(idx=0)完了後、締め(idx=5)のプロンプトにキャッチを注入
       if (i === 0 && text) {
         sections[5].prompt = sections[5].prompt.replace('__CATCH__', text.trim());
