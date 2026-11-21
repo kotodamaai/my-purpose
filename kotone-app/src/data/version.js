@@ -14,6 +14,9 @@ export const VERSIONS = {
   // プロンプト系（src/data/prompts.js）
   prompt: "2026-08-05",     // 書き出し自由化・セクション分離・キャッチ注入
 
+  // 表示（画面デザイン）
+  ui: "beta-1",             // KOTONE · MY PURPOSE β（配色「藤と墨」、β表記）
+
   // 検証ログのスキーマ自体のバージョン
   logSchema: "2",
 };

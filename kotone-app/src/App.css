@@ -1,14 +1,16 @@
 :root {
-  --bg: #f4f1ea;
-  --bg-panel: #fafaf6;
+  /* β版パレット「藤と墨」：藤色の淡い地に墨の文字、差し色に藤紫と青碧 */
+  --bg: #f2f0f6;
+  --bg-panel: #f8f7fb;
   --bg-card: #ffffff;
-  --ink: #1a1a1a;
-  --ink-2: #4a4a4a;
-  --ink-3: #8a8a8a;
-  --line: #d8d2c5;
-  --accent: #b8593a;
-  --accent-2: #2c4a52;
-  --accent-3: #8a7c4f;
+  --ink: #1e1b2b;
+  --ink-2: #4a4659;
+  --ink-3: #8b879a;
+  --line: #d9d4e4;
+  --accent: #6a55a8;
+  --accent-2: #2e6670;
+  --accent-3: #8a7fb5;
+  --accent-soft: #efeaf8;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -206,7 +208,7 @@ body {
 .submit-btn:disabled { background: var(--ink-3); cursor: not-allowed; }
 
 .error-msg {
-  background: #ffe6e0;
+  background: var(--accent-soft);
   border: 1px solid var(--accent);
   color: var(--accent);
   padding: 10px 14px;
@@ -288,7 +290,7 @@ body {
 .catch-section .section-body {
   text-align: center;
   padding: 32px 24px;
-  background: linear-gradient(180deg, #fefcf6 0%, #faf6ec 100%);
+  background: linear-gradient(180deg, #faf9fd 0%, #f1edf8 100%);
 }
 
 .catch-text {
@@ -501,7 +503,7 @@ body {
 
 .sr-item {
   padding: 12px 0;
-  border-bottom: 1px solid #efece4;
+  border-bottom: 1px solid #ebe8f2;
 }
 
 .sr-item:last-child { border-bottom: none; }
@@ -595,3 +597,30 @@ body {
   .sr-scale { gap: 6px; }
   .score-value { font-size: 20px; min-width: 54px; }
 }
+
+/* ===== β版 ===== */
+.beta-badge {
+  display: inline-block;
+  margin-left: 0.4em;
+  padding: 0 0.4em;
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  color: var(--accent);
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.42em;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.5;
+  vertical-align: super;
+}
+
+.logo-small .beta-badge { font-size: 0.95em; vertical-align: baseline; padding: 0 0.3em; }
+
+/* 音の波（トップ画面の飾り） */
+.top-wave {
+  width: 160px;
+  height: 24px;
+  margin: 4px auto 28px;
+  display: block;
+}
+.top-wave path { fill: none; stroke: var(--accent-3); stroke-width: 1.2; }

@@ -86,7 +86,7 @@ export default function InputForm({ onSubmit, onBack }) {
   return (
     <div className="input-screen">
       <div className="input-header">
-        <div className="logo-small">KOTONE · MY PURPOSE</div>
+        <div className="logo-small">KOTONE · MY PURPOSE<span className="beta-badge">β</span></div>
         <h2>診断情報の入力</h2>
       </div>
 
@@ -96,7 +96,7 @@ export default function InputForm({ onSubmit, onBack }) {
         {/* 姓・名 */}
         <div className="field-group">
           <div className="field">
-            <label>姓（ひらがな）</label>
+            <label>姓（ひらがな・カタカナ）</label>
             <input
               type="text"
               name="lastName"
@@ -107,7 +107,7 @@ export default function InputForm({ onSubmit, onBack }) {
             />
           </div>
           <div className="field">
-            <label>名（ひらがな）<span className="required">*</span></label>
+            <label>名（ひらがな・カタカナ）<span className="required">*</span></label>
             <input
               type="text"
               name="firstName"
