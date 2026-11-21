@@ -25,7 +25,15 @@ function splitBase(ch) {
 //  長音(ー):     直前の音の重みを+0.5し、markOnly要素として「伸長」を足す
 // 各要素: { ch, weight, overlay: string[], pos?: number, markOnly?: true }
 //  pos: 名前の頭から数えた音の位置（0始まり）。拗音は基底音と小書き文字で同じ位置、促音・長音は位置を持たない
-export function decomposeSounds(name) {
+// v1.4: カタカナをひらがなに変換し、空白を除く（芸名・商品名などカタカナ入力に対応）
+export function normalizeKana(text) {
+  return String(text || "")
+    .replace(/[\s\u3000]/g, "")
+    .replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+}
+
+export function decomposeSounds(rawName) {
+  const name = normalizeKana(rawName);
   const result = [];
   let pos = 0;
   for (let i = 0; i < name.length; i++) {
