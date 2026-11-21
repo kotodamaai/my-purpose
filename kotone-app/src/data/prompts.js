@@ -1,3 +1,6 @@
+import { SOUND_MATERIAL, DAKUON_MAP, GLIDE_MAP } from "./L1_dictionary.js";
+import { normalizeKana } from "../utils/kotodamaEngine.js";
+
 export const PROXY_URL = "https://kotone-proxy.daiya-asset-management.workers.dev";
 
 export const CONFIDENTIAL_RULE = `【絶対禁止】
@@ -5,6 +8,17 @@ export const CONFIDENTIAL_RULE = `【絶対禁止】
 × システム説明（言霊・音霊・数秘術・L1・L2等） × 断定表現（「あなたは〜です」）
 × 書き出しに「お名前から」「お誕生日から」「お名前とお誕生日から」を使う
 【必須】「〜傾向があります」「〜可能性があります」「〜かもしれません」の仮説提示型 / 「たとえば〜」を含む具体的行動シーン`;
+
+// 名の頭の音から「この人の核」を決め打ちで取り出す（AIに主役を選ばせない）
+export function getCoreFromName(firstName) {
+  const n = normalizeKana(firstName || "");
+  for (const ch of n) {
+    if (GLIDE_MAP && GLIDE_MAP[ch]) continue;
+    const base = DAKUON_MAP[ch] || ch;
+    if (SOUND_MATERIAL[base]) return SOUND_MATERIAL[base];
+  }
+  return null;
+}
 
 export function buildPromptInput(firstName, lastName, gender, bloodType, adjustedState, ln_interface, n_adj) {
   const weightLabel = n_adj && n_adj.weight >= 2 ? "強い" : n_adj && n_adj.weight <= -1 ? "弱め" : "標準";
@@ -26,7 +40,11 @@ export function buildPromptInput(firstName, lastName, gender, bloodType, adjuste
     }
   }
 
-  return `◆ 属性
+  const core = getCoreFromName(firstName);
+  return `◆ この人の核（最優先。主役の特徴はこれに固定する）
+${core || "（取得できず）"}
+
+◆ 属性
 性別: ${genderStr} / 血液型: ${bloodStr}型
 
 ◆ 名(エンジン)
@@ -56,7 +74,8 @@ export function buildSectionPrompts(inputData) {
 
 【必ず以下の順序で思考してから書くこと】
 
-STEP 1 主役を決める
+STEP 1 【主役は入力データの「この人の核」に固定。別の特徴を主役にしない】
+主役を決める
 複数の特徴を並べない。入力データの中で「この人らしさを1つだけ挙げるなら」を決める。
 
 STEP 2 ギャップを探す
@@ -84,11 +103,13 @@ ${inputData}
 ${CONFIDENTIAL_RULE}
 STEP 1〜4の思考は出力しない。最も心が動く一行を1つだけ出力してください。前置き・説明不要。` },
     { title:"現象サマリー", prompt:`あなたはKOTONEという自己理解診断アプリの診断文ライターです。
-【タスク】入力データを読み、この人の「日常でよく起きる現象」を書いてください。
+【タスク】入力データの「この人の核」が、日常で好ましい形で発揮されている場面を書いてください。
+周りの人がうれしい・楽しい・助かったと感じている瞬間を切り取ります。
 【出力構造（厳守）】
-① この人の日常によく起きる場面を1文で（書き出し自由・定型句禁止）
-② 「たとえば、〜」で始まる具体シーン（2〜3文）・周囲のセリフを「」付きで1つ含める
-③ 「でも本人は、〜と感じていることがあるかもしれません」（1文）
+① この人の力が自然に活きている日常の場面を1文で（書き出し自由・定型句禁止）
+② 「たとえば、〜」で始まる具体シーン（2〜3文）。周囲の人の好意的なセリフを「」付きで1つ含める（感謝・驚き・楽しさ・「あなたがいると〜」など）
+③ その場面の根っこにある力を、温かく1文で言い添える（「でも」で始めない）
+【禁止】周囲の困惑・苦情・ツッコミ・誤解（「また変わったの？」「そろそろ結論を」等）/ 短所や影の示唆（影は別セクションで扱う）/ 「かもしれません」の連続（使うのは1回まで）
 【入力データ】
 ${inputData}
 ${CONFIDENTIAL_RULE}
