@@ -1,13 +1,13 @@
 import { PROXY_URL, buildPromptInput, buildSectionPrompts } from '../data/prompts.js';
 
-export async function callProxy(prompt, model, maxTokens = 550) {
+export async function callProxy(prompt, model, maxTokens = 550, temperature = 0.5) {
   const resp = await fetch(PROXY_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       max_tokens: maxTokens,
-      temperature: 0.5,
+      temperature,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -55,12 +55,14 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
     if (onSectionStart) onSectionStart(i, sec.title, "generating");
 
     try {
-      let text = await callProxy(sec.prompt, haiku, 550);
+      // キャッチ(idx=0)は毎回ぶれないよう揺らぎを抑える
+      const temp = i === 0 ? 0.1 : 0.5;
+      let text = await callProxy(sec.prompt, haiku, 550, temp);
       let usedModel = "Haiku";
 
       if (shouldUseSonnet(i, text)) {
         if (onSectionStart) onSectionStart(i, sec.title, "retry-sonnet");
-        text = await callProxy(sec.prompt, sonnet, 550);
+        text = await callProxy(sec.prompt, sonnet, 550, temp);
         usedModel = "Sonnet↑";
       }
 
