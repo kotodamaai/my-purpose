@@ -1,21 +1,25 @@
 import {
   KOTODAMA_L1, DAKUON_MAP, SURNAME_INTERFACE,
   HANDAKUON, GLIDE_MAP, SPECIAL_SOUND_OVERLAY, SURNAME_OVERLAY,
+  DAKUON_AMPLIFY, INTERVAL_PERFECT_FIFTH,
 } from '../data/L1_dictionary.js';
 
 const NATURAL_ORDER = ["起点", "拡散", "収束", "接続", "切断", "保持"];
 
 // 1文字を「清音の基底音」と「上乗せmodifier」に分ける
+// v1.4: 濁音はその音自身の重みを完全4度（4/3）で増幅する
 function splitBase(ch) {
   const base = DAKUON_MAP[ch] || ch;
   const overlay = [];
+  let amp = 1.0;
   if (HANDAKUON.has(ch)) overlay.push(SPECIAL_SOUND_OVERLAY.handakuon);
-  else if (DAKUON_MAP[ch]) overlay.push(SPECIAL_SOUND_OVERLAY.dakuon);
-  return { base, overlay };
+  else if (DAKUON_MAP[ch]) { overlay.push(SPECIAL_SOUND_OVERLAY.dakuon); amp = DAKUON_AMPLIFY; }
+  return { base, overlay, amp };
 }
 
 // 名前を音に分解する（v1.3: 特殊音の整理）
-//  濁音・半濁音: 清音の意味を使い、overlayに「重量」「弾み」を付ける
+//  濁音:         清音の意味の重みを4/3倍（完全4度）に増幅し、overlayに「重量」を付ける（v1.4）
+//  半濁音:       清音の意味を使い、overlayに「弾み」を付ける
 //  拗音:         基底音0.5＋小書き文字の音0.5、基底音に「軽快」
 //  促音(っ):     markOnly要素として「瞬発」だけを足す
 //  長音(ー):     直前の音の重みを+0.5し、markOnly要素として「伸長」を足す
@@ -28,9 +32,9 @@ export function decomposeSounds(name) {
     const ch = name[i];
     const next = name[i + 1];
     if (next && GLIDE_MAP[next]) {
-      const { base, overlay } = splitBase(ch);
+      const { base, overlay, amp } = splitBase(ch);
       overlay.push(SPECIAL_SOUND_OVERLAY.youon);
-      result.push({ ch: base, weight: 0.5, overlay, pos });
+      result.push({ ch: base, weight: 0.5 * amp, overlay, pos });
       result.push({ ch: GLIDE_MAP[next], weight: 0.5, overlay: [], pos });
       pos++;
       i++;
@@ -46,22 +50,22 @@ export function decomposeSounds(name) {
       result.push({ ch, weight: 1.0, overlay: [SPECIAL_SOUND_OVERLAY.chouon], markOnly: true });
       continue;
     }
-    const { base, overlay } = splitBase(ch);
-    result.push({ ch: base, weight: 1.0, overlay, pos });
+    const { base, overlay, amp } = splitBase(ch);
+    result.push({ ch: base, weight: 1.0 * amp, overlay, pos });
     pos++;
   }
   return result;
 }
 
 // 名の位置の重み（v1.4）。頭の音ほど個性を担い、語尾（こ・み・お・すけ・たろう等）は名付けの型として軽く効かせる
-// 6音目以降は最後の値を使う。姓（インターフェース）には適用しない
-export const NAME_POSITION_WEIGHTS = [1.0, 0.7, 0.45, 0.3, 0.2];
+// 頭から完全5度の逆数（2/3）ずつ減衰：1 → 0.667 → 0.444 → 0.296 → 0.198 …。姓（インターフェース）には適用しない
+export const NAME_POSITION_RATIO = 1 / INTERVAL_PERFECT_FIFTH;
 // 名のプロセス（動き）として採用する最大数（v1.4）。多すぎると「全部持ち」になり個性が消えるため
 export const MAX_PROCESS_MOTIONS = 3;
 
 function positionWeight(pos) {
   if (pos === undefined) return 1.0;
-  return NAME_POSITION_WEIGHTS[Math.min(pos, NAME_POSITION_WEIGHTS.length - 1)];
+  return Math.pow(NAME_POSITION_RATIO, pos);
 }
 
 // 拮抗判定の閾値(暫定値。実データでの感度分析待ち。KOTONE_L2非損失表現設計_v1_0 3.2節と対応)
