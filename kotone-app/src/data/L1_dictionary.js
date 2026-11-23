@@ -148,7 +148,7 @@ export const SURNAME_INTERFACE = {
 
 // 50音マスター素材
 export const SOUND_MATERIAL = {
-  "あ": "創造性と求心力",
+  "あ": "創造性と開拓力",
   "い": "細やかな感受性と本質を見抜く力",
   "う": "包み込む受容性",
   "え": "違いを見極める識別力",
