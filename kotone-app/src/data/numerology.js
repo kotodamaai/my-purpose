@@ -16,19 +16,19 @@ export const NUMEROLOGY_L1 = {
   "33": { meta: {気質:"中庸", 役割:"リーダー",       成長:"青年"  } },
 };
 
-// 数秘補正辞書 v0.1
+// 数秘補正辞書 v0.2（0.2: 4・22 に動き「保持」を付与。4＝Builder、22＝Master Builder）
 export const NUMEROLOGY_ADJUST = {
   "1":  { weight: +2, priority: "起点", timing: "immediate" },
   "2":  { weight: -1, priority: "接続", timing: "delayed" },
   "3":  { weight: +1, priority: "拡散", persistence: -1 },
-  "4":  { weight:  0, persistence: +2, timing: "early" },
+  "4":  { weight:  0, priority: "保持", persistence: +2, timing: "early" },
   "5":  { weight: +1, priority: "拡散", timing: "cyclic", persistence: -1 },
   "6":  { weight:  0, priority: "接続", persistence: +1 },
   "7":  { weight: -1, priority: "収束", persistence: +2 },
   "8":  { weight: +2, priority: "拡散", persistence: +1, timing: "immediate" },
   "9":  { weight:  0, priority: "収束", persistence: +1, timing: "delayed" },
   "11": { weight: +2, priority: "接続", timing: "immediate" },
-  "22": { weight: +2, persistence: +2, timing: "early" },
+  "22": { weight: +2, priority: "保持", persistence: +2, timing: "early" },
   "33": { weight: +1, priority: "接続", persistence: +2 },
 };
 
