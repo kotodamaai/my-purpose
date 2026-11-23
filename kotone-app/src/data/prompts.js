@@ -10,6 +10,13 @@ export const CONFIDENTIAL_RULE = `【絶対禁止】
 × 書き出しに「お名前から」「お誕生日から」「お名前とお誕生日から」を使う
 【必須】「〜傾向があります」「〜可能性があります」「〜かもしれません」の仮説提示型 / 「たとえば〜」を含む具体的行動シーン`;
 
+// 性別の扱い（ver2.2）：核と才能は性別で変えない。性別は言葉づかいにだけ使う
+export const GENDER_RULE = `【性別の扱い】
+・性別は、呼びかけや言葉づかいが不自然にならないためだけに使う。性格・才能・場面の読みには使わない
+・「この人の核」を主役に、入力データの特徴は渡された順番のまま扱う。性別を理由に、前に出す特徴を入れ替えたり弱めたりしない
+・場面や小物を、性別からの決まりきった連想で選ばない（家事・装い・恋愛・「母親役」「兄貴分」など）
+・入れ替えテスト：書いた場面が、性別を入れ替えても不自然にならないかを確かめ、不自然なら場面を替える`;
+
 // 名の頭の音から「この人の核」を決め打ちで取り出す（AIに主役を選ばせない）
 export function getCoreFromName(firstName) {
   const n = normalizeKana(firstName || "");
@@ -44,14 +51,13 @@ export function buildBirthdayBlock(n_L1, overlap) {
   return lines.join("\n");
 }
 
-export function buildPromptInput(firstName, lastName, gender, bloodType, adjustedState, ln_interface, n_adj, n_L1, overlap) {
+export function buildPromptInput(firstName, lastName, gender, adjustedState, ln_interface, n_adj, n_L1, overlap) {
   const weightLabel = n_adj && n_adj.weight >= 2 ? "強い" : n_adj && n_adj.weight <= -1 ? "弱め" : "標準";
   const persistLabel = n_adj && n_adj.persistence >= 2 ? "長続き" : n_adj && n_adj.persistence <= -1 ? "波あり" : "標準";
   const timingMap = { immediate:"すぐに動き始める", delayed:"じっくり時間をかけて動く", cyclic:"繰り返しながら動く", early:"早めに動き始める" };
   const timingStr = n_adj && n_adj.timing ? n_adj.timing.map(t => timingMap[t]||t).join(" + ") : "標準";
   const interStr = adjustedState && adjustedState.interaction ? adjustedState.interaction.map(o=>`${o.type}: ${o.note}`).join("\n") : "（姓未入力）";
   const genderStr = gender === "male" ? "男性" : gender === "female" ? "女性" : "その他";
-  const bloodStr = bloodType || "不明";
 
   // 方向の記述：拮抗している場合は単一断定を避け、混在として伝える(発見C対応)
   let directionStr = "不明";
@@ -69,7 +75,7 @@ export function buildPromptInput(firstName, lastName, gender, bloodType, adjuste
 ${core || "（取得できず）"}
 
 ◆ 属性
-性別: ${genderStr} / 血液型: ${bloodStr}型
+性別: ${genderStr}（言葉づかいのためだけに使う）
 
 ◆ 名(エンジン)
 動きの方向: ${directionStr}
@@ -135,6 +141,7 @@ STEP 5 キャッチコピー化する
 【入力データ】
 ${inputData}
 ${CONFIDENTIAL_RULE}
+${GENDER_RULE}
 STEP 1〜4の思考は出力しない。最も心が動く一行を1つだけ出力してください。前置き・説明不要。` },
     { title:"現象サマリー", prompt:`あなたはKOTONEという自己理解診断アプリの診断文ライターです。
 【タスク】入力データの「この人の核」が、日常で好ましい形で発揮されている場面を書いてください。
@@ -152,6 +159,7 @@ __BIRTH__
 【入力データ】
 ${inputData}
 ${CONFIDENTIAL_RULE}
+${GENDER_RULE}
 構造①〜③のみ出力。前置き不要。` },
     { title:"お名前から見えること", prompt:`あなたはKOTONEという自己理解診断アプリの診断文ライターです。
 【タスク】入力データの「名(エンジン)」の情報だけをもとに、この人の自然な動き方を書いてください。
@@ -163,6 +171,7 @@ ${CONFIDENTIAL_RULE}
 【入力データ】
 ${inputData}
 ${CONFIDENTIAL_RULE}
+${GENDER_RULE}
 構造①〜③のみ出力。前置き不要。` },
     { title:"お誕生日から見えること", prompt:`あなたはKOTONEという自己理解診断アプリの診断文ライターです。
 【タスク】入力データの「◆ 誕生日」をもとに、この人が生まれ持った使命と、それを支える才能・育ちの土壌を書いてください。
@@ -174,6 +183,7 @@ ${CONFIDENTIAL_RULE}
 【入力データ】
 ${inputData}
 ${CONFIDENTIAL_RULE}
+${GENDER_RULE}
 構造①〜③のみ出力。前置き不要。` },
     { title:"光と影", prompt:`あなたはKOTONEという自己理解診断アプリの診断文ライターです。
 【タスク】この人の「強みが強く出すぎる時に何が起きるか」を書いてください。
@@ -188,6 +198,7 @@ ${CONFIDENTIAL_RULE}
 【入力データ】
 ${inputData}
 ${CONFIDENTIAL_RULE}
+${GENDER_RULE}
 出力構造のみ。前置き不要。` },
     { title:"締め", prompt:`あなたはKOTONEという自己理解診断アプリの診断文ライターです。
 【タスク】この診断を読んだ人への「小さな次の一手」を書いてください。
@@ -203,6 +214,7 @@ ${CONFIDENTIAL_RULE}
 【入力データ】
 ${inputData}
 ${CONFIDENTIAL_RULE}
+${GENDER_RULE}
 構造①〜③のみ出力。前置き不要。` },
   ];
 }

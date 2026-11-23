@@ -16,7 +16,6 @@ export default function InputForm({ initial, onSubmit, onBack }) {
     month: initial?.month != null ? String(initial.month) : '',
     day: initial?.day != null ? String(initial.day) : '',
     gender: initial?.gender ?? '',
-    bloodType: initial?.bloodType ?? '',
     birthdayEstimated: initial?.birthdayEstimated ?? false,
   }));
   const [error, setError] = useState('');
@@ -30,7 +29,7 @@ export default function InputForm({ initial, onSubmit, onBack }) {
     e.preventDefault();
     setError('');
 
-    const { lastName, firstName, year, month, day, gender, bloodType, birthdayEstimated } = form;
+    const { lastName, firstName, year, month, day, gender, birthdayEstimated } = form;
 
     if (!firstName.trim()) {
       setError('名（ひらがな）を入力してください。');
@@ -42,10 +41,6 @@ export default function InputForm({ initial, onSubmit, onBack }) {
     }
     if (!gender) {
       setError('性別を選択してください。');
-      return;
-    }
-    if (!bloodType) {
-      setError('血液型を選択してください。');
       return;
     }
 
@@ -72,7 +67,7 @@ export default function InputForm({ initial, onSubmit, onBack }) {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       year: y, month: m, day: d,
-      gender, bloodType,
+      gender,
       birthdayEstimated,
       fn_L1, fn_L2, ln_interface,
       n_L1, n_adj, overlap,
@@ -87,7 +82,7 @@ export default function InputForm({ initial, onSubmit, onBack }) {
   return (
     <div className="input-screen">
       <div className="input-header">
-        <div className="logo-small">KOTONE · MY PURPOSE<span className="beta-badge">ver2.1</span></div>
+        <div className="logo-small">KOTONE · MY PURPOSE<span className="beta-badge">ver2.2</span></div>
         <h2>診断情報の入力</h2>
       </div>
 
@@ -166,7 +161,7 @@ export default function InputForm({ initial, onSubmit, onBack }) {
 
         <hr className="field-divider" />
 
-        {/* 性別・血液型 */}
+        {/* 性別 */}
         <div className="field-group">
           <div className="field">
             <label>性別<span className="required">*</span></label>
@@ -176,18 +171,6 @@ export default function InputForm({ initial, onSubmit, onBack }) {
                 <option value="female">女性</option>
                 <option value="male">男性</option>
                 <option value="other">その他</option>
-              </select>
-            </div>
-          </div>
-          <div className="field">
-            <label>血液型<span className="required">*</span></label>
-            <div className="select-wrapper">
-              <select name="bloodType" value={form.bloodType} onChange={handleChange} required>
-                <option value="">選択</option>
-                <option value="A">A型</option>
-                <option value="B">B型</option>
-                <option value="O">O型</option>
-                <option value="AB">AB型</option>
               </select>
             </div>
           </div>

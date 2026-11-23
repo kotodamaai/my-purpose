@@ -38,13 +38,13 @@ async function selfCheck(text) {
  * @param {function} onSectionStart - コールバック(idx, title, status)
  */
 export async function generateAllSections(params, onSectionComplete, onSectionStart) {
-  const { firstName, lastName, gender, bloodType, adjustedState, output, ln_interface, n_adj, n_L1, overlap } = params;
+  const { firstName, lastName, gender, adjustedState, output, ln_interface, n_adj, n_L1, overlap } = params;
 
   const stateWithInteraction = adjustedState
     ? { ...adjustedState, interaction: output ? output.interaction : null }
     : null;
 
-  const inputData = buildPromptInput(firstName, lastName, gender, bloodType, stateWithInteraction, ln_interface, n_adj, n_L1, overlap);
+  const inputData = buildPromptInput(firstName, lastName, gender, stateWithInteraction, ln_interface, n_adj, n_L1, overlap);
   const sections = buildSectionPrompts(inputData);
 
   const haiku = "claude-haiku-4-5-20251001";
