@@ -5,6 +5,7 @@ export const VERSIONS = {
   // 辞書系（src/data/）
   kotodamaL1: "1.4",        // L1_dictionary.js: KOTODAMA_L1（1.4: 濁音の増幅4/3・名の位置の重み2/3ずつ・プロセス上位3つ。1.3: 特殊音の上乗せmodifier）
   surnameInterface: "0.4",  // SURNAME_INTERFACE（0.4: 位置の重み2/3ずつ＋重み付き平均＋目盛り再校正。0.3: 濁音・半濁音の上乗せ）
+  soundMaterial: "1.1",     // L1_dictionary.js: SOUND_MATERIAL（1.1: 「あ」創造性と求心力→創造性と開拓力。外向・起点の向きと音象徴「開く・大きい」に合わせた）
   numerologyL1: "1.1",      // numerology.js: NUMEROLOGY_L1（direction/motion/modifier削除済み）
   numerologyAdjust: "0.1",  // numerology.js: NUMEROLOGY_ADJUST
 
