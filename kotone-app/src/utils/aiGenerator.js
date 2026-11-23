@@ -50,7 +50,18 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
   const haiku = "claude-haiku-4-5-20251001";
   const sonnet = "claude-sonnet-4-5";
 
-  for (let i = 0; i < sections.length; i++) {
+  // 作る順番（表示の順番とは別）。表示は キャッチ → 説明 の順のまま
+  //   お名前から見えること → お誕生日から見えること → 現象サマリー（両方を踏まえる）
+  //   → キャッチ（お名前・現象サマリーから作る）→ 光と影 → 締め（キャッチを受ける）
+  // 数字は表示の位置（0:キャッチ 1:現象サマリー 2:お名前 3:お誕生日 4:光と影 5:締め）
+  const GENERATION_ORDER = [2, 3, 1, 0, 4, 5];
+  // 先に書いた文章を、後のプロンプトへ差し込む
+  const FILL = { 2: "__NAME__", 3: "__BIRTH__", 1: "__SUMMARY__", 0: "__CATCH__" };
+  const fill = (token, value) => {
+    for (const s2 of sections) s2.prompt = s2.prompt.split(token).join(value);
+  };
+
+  for (const i of GENERATION_ORDER) {
     const sec = sections[i];
     if (onSectionStart) onSectionStart(i, sec.title, "generating");
 
@@ -83,17 +94,12 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
       // 構造指示の番号（①②③）が本文に漏れたら取り除く
       if (text) text = text.replace(/^[ \t\u3000]*[①②③④⑤][ \t\u3000]*/gm, '');
 
-      // キャッチコピー(idx=0)完了後、締め(idx=5)のプロンプトにキャッチを注入
-      if (i === 0 && text) {
-        sections[5].prompt = sections[5].prompt.replace('__CATCH__', text.trim());
-      }
+      if (FILL[i]) fill(FILL[i], (text || "（未取得）").trim());
 
       if (onSectionComplete) onSectionComplete(i, sec.title, text, usedModel, checkOk);
     } catch (e) {
-      // 失敗時もプレースホルダーを空文字で埋めてから継続
-      if (i === 0) {
-        sections[5].prompt = sections[5].prompt.replace('__CATCH__', '（キャッチコピー未取得）');
-      }
+      // 失敗時も差し込み先を埋めてから継続
+      if (FILL[i]) fill(FILL[i], "（未取得）");
       if (onSectionComplete) onSectionComplete(i, sec.title, null, null, false, String(e.message || e));
     }
   }
