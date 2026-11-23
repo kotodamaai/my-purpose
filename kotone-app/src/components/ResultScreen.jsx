@@ -36,7 +36,7 @@ function LoadingDots({ label }) {
 export default function ResultScreen({ data, onRestart }) {
   const {
     firstName, lastName, year, month, day, birthdayEstimated,
-    gender, bloodType, fn_L1, ln_interface, n_L1, n_adj, adjustedState, overlap,
+    gender, fn_L1, ln_interface, n_L1, n_adj, adjustedState, overlap,
   } = data;
 
   const [sections, setSections] = useState(() =>
@@ -115,7 +115,6 @@ export default function ResultScreen({ data, onRestart }) {
       input: {
         hasSurname: !!lastName,
         gender: gender || null,
-        bloodType: bloodType || null,
         birthdayEstimated: !!birthdayEstimated,
       },
 
@@ -154,7 +153,7 @@ export default function ResultScreen({ data, onRestart }) {
   return (
     <div className="result-screen">
       <div className="result-header">
-        <div className="logo-small">KOTONE · MY PURPOSE<span className="beta-badge">ver2.1</span></div>
+        <div className="logo-small">KOTONE · MY PURPOSE<span className="beta-badge">ver2.2</span></div>
         <div className="result-name">{displayName || firstName}</div>
         <div className="result-date">{displayDate}生まれ</div>
       </div>
