@@ -1,4 +1,5 @@
 import { SOUND_MATERIAL, DAKUON_MAP, GLIDE_MAP } from "./L1_dictionary.js";
+import { NUMEROLOGY_L3 } from "./numerology.js";
 import { normalizeKana } from "../utils/kotodamaEngine.js";
 
 export const PROXY_URL = "https://kotone-proxy.daiya-asset-management.workers.dev";
@@ -20,7 +21,30 @@ export function getCoreFromName(firstName) {
   return null;
 }
 
-export function buildPromptInput(firstName, lastName, gender, bloodType, adjustedState, ln_interface, n_adj) {
+// 誕生日の3つの役割を、数字を出さずに文章で渡す（数字解説は禁止のため）
+const OVERLAP_NOTE = {
+  "二重に刻まれた": "使命の動きが、お名前の動きの先頭と同じ。名前と誕生日の両方に刻まれているので、より強く表れやすい",
+  "一部重なる": "誕生日の動きの一部が、お名前の動きにも含まれている。重なる部分は強まり、重ならない部分は別の面として表れる",
+  "二つの顔": "誕生日の動きは、お名前の動きと重ならない。名前の顔と誕生日の顔、二つの面（二面性）を持つ",
+};
+const ROLE_MOTION_LABEL = { mission: "使命", talent: "才能", soil: "育ちの土壌" };
+export function buildBirthdayBlock(n_L1, overlap) {
+  if (!n_L1 || !n_L1.roles) return "（生年月日なし）";
+  const t = (num) => NUMEROLOGY_L3[num] || null;
+  const m = t(n_L1.roles.mission.num), ta = t(n_L1.roles.talent.num), so = t(n_L1.roles.soil.num);
+  const lines = [];
+  lines.push(`使命（主役。この人が生まれ持った使命）: ${m ? `${m.本質}。${m.人物像_中}` : "不明"}`);
+  lines.push(`才能（補助。誕生日の日から）: ${ta ? `${ta.力名}。${ta.行動傾向}` : "不明"}`);
+  lines.push(`育ちの土壌（補助。誕生月から。人生の前半を形づくる地盤）: ${so ? `${so.本質}` : "不明"}`);
+  if (m) lines.push(`使命の光と影: ${m.光と影}`);
+  if (overlap) {
+    const which = overlap.matched.map(x => ROLE_MOTION_LABEL[x.role]).join("・");
+    lines.push(`名前との重なり: ${overlap.type}（${OVERLAP_NOTE[overlap.type]}${which ? `。重なっているのは${which}` : ""}）`);
+  }
+  return lines.join("\n");
+}
+
+export function buildPromptInput(firstName, lastName, gender, bloodType, adjustedState, ln_interface, n_adj, n_L1, overlap) {
   const weightLabel = n_adj && n_adj.weight >= 2 ? "強い" : n_adj && n_adj.weight <= -1 ? "弱め" : "標準";
   const persistLabel = n_adj && n_adj.persistence >= 2 ? "長続き" : n_adj && n_adj.persistence <= -1 ? "波あり" : "標準";
   const timingMap = { immediate:"すぐに動き始める", delayed:"じっくり時間をかけて動く", cyclic:"繰り返しながら動く", early:"早めに動き始める" };
@@ -52,6 +76,9 @@ ${core || "（取得できず）"}
 プロセス: ${adjustedState ? adjustedState.process.join(" → ") : "不明"}
 修飾: ${adjustedState && adjustedState.modifier && adjustedState.modifier.length ? adjustedState.modifier.join(", ") : "なし"}
 数秘補正後の優先motion: ${n_adj && n_adj.priority && n_adj.priority.length ? n_adj.priority.join(", ") : "なし"}
+
+◆ 誕生日（名前とは切り分けて読む。重なれば強く、相反すれば二面性）
+${buildBirthdayBlock(n_L1, overlap)}
 
 ◆ 数秘(エネルギー条件)
 強度: ${weightLabel} / 持続性: ${persistLabel} / タイミング: ${timingStr}
@@ -126,11 +153,12 @@ ${inputData}
 ${CONFIDENTIAL_RULE}
 構造①〜③のみ出力。前置き不要。` },
     { title:"お誕生日から見えること", prompt:`あなたはKOTONEという自己理解診断アプリの診断文ライターです。
-【タスク】入力データの「数秘(エネルギー条件)」の情報をもとに、この人のエネルギーの特性を書いてください。
+【タスク】入力データの「◆ 誕生日」をもとに、この人が生まれ持った使命と、それを支える才能・育ちの土壌を書いてください。
+主役は「使命」。「才能」と「育ちの土壌」は使命を支える補助として扱う。
 【出力構造（厳守）】
-① このエネルギーの特性を1文で（書き出し自由・数字禁止・定型句禁止）
-② 「お名前から来る動き方に、〜という条件が加わることで」（2文）
-③ 「その分、〜という面もあるかもしれません」（1文）
+① この人が生まれ持った使命を1文で（書き出し自由・数字禁止・定型句禁止）
+② その使命を、才能と育ちの土壌がどう支えているか（2文。「たとえば〜」で具体的な場面を1つ含める）
+③ 「名前との重なり」に従って1文：二重に刻まれた→名前の動きとも重なり、より強く表れやすいこと／一部重なる→重なる部分は強まり、それ以外は別の面として表れること／二つの顔→名前の動きとは別の顔を持ち、その二面性が奥行きになること
 【入力データ】
 ${inputData}
 ${CONFIDENTIAL_RULE}

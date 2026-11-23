@@ -36,7 +36,7 @@ function LoadingDots({ label }) {
 export default function ResultScreen({ data, onRestart }) {
   const {
     firstName, lastName, year, month, day, birthdayEstimated,
-    gender, bloodType, fn_L1, ln_interface, n_L1, n_adj, adjustedState,
+    gender, bloodType, fn_L1, ln_interface, n_L1, n_adj, adjustedState, overlap,
   } = data;
 
   const [sections, setSections] = useState(() =>
@@ -120,7 +120,7 @@ export default function ResultScreen({ data, onRestart }) {
       },
 
       // エンジン出力（構造の正本）
-      structure: { fn_L1, ln_interface, n_L1, n_adj, adjustedState },
+      structure: { fn_L1, ln_interface, n_L1, n_adj, adjustedState, overlap },
 
       // 分析で頻繁に使う値を上位に再掲（拮抗・確信度の検証用）
       derived: (fn_L1 && fn_L1.derived) || null,
@@ -154,7 +154,7 @@ export default function ResultScreen({ data, onRestart }) {
   return (
     <div className="result-screen">
       <div className="result-header">
-        <div className="logo-small">KOTONE · MY PURPOSE<span className="beta-badge">ver1.0</span></div>
+        <div className="logo-small">KOTONE · MY PURPOSE<span className="beta-badge">ver2.0</span></div>
         <div className="result-name">{displayName || firstName}</div>
         <div className="result-date">{displayDate}生まれ</div>
       </div>
