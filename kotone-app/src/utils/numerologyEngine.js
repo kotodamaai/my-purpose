@@ -99,6 +99,7 @@ export function getNumerologyL1(year, month, day) {
 //   一部重なる  ：使命数・誕生日の数・月の数のどれかの動きが、名の動きに含まれる
 //   二つの顔   ：どれも重ならない（名前と誕生日が別の面を持つ＝二面性）
 // 名の動きは数秘で並べ替える前のもの（fn_L2.process）を使う
+// ver2.4：本番では使わない（judgeNameBirthdayGogyo に置き換え）。数→動きの対応表が自作で根が浅いため。比較用に残す
 export function judgeNameBirthdayOverlap(n_L1, fn_L2) {
   if (!n_L1 || !n_L1.roles) return null;
   const nameProcess = (fn_L2 && fn_L2.process) || [];
