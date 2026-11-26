@@ -14,9 +14,7 @@ export function computeDay(day) {
       result.primary = [String(tens), String(ones)];
       result.isPair = true;
       let sum = tens + ones;
-      if (sum === 11 || sum === 22) {
-        result.converged = String(sum);
-      } else if (sum >= 10) {
+      if (sum >= 10) {
         sum = Math.floor(sum / 10) + (sum % 10);
         result.converged = String(sum);
       } else {
@@ -28,7 +26,7 @@ export function computeDay(day) {
 }
 
 export function computeMonth(month) {
-  if (month === 11) return { value: "11", isMaster: true };
+  // ver2.5：マスターナンバーを使わない（11月も 1+1＝2）
   if (month < 10) return { value: String(month), isMaster: false };
   const sum = Math.floor(month / 10) + (month % 10);
   return { value: String(sum), isMaster: false, amplified: month === 10 || month === 20 };
@@ -39,7 +37,7 @@ export function computeFullSum(year, month, day) {
   let sum = 0;
   for (const ch of digits) sum += parseInt(ch);
   const trace = [sum];
-  while (sum >= 10 && sum !== 11 && sum !== 22 && sum !== 33) {
+  while (sum >= 10) {
     let next = 0;
     for (const ch of String(sum)) next += parseInt(ch);
     sum = next;
@@ -48,8 +46,11 @@ export function computeFullSum(year, month, day) {
   return { final: String(sum), trace };
 }
 
-// 一桁になるまで各桁を足す。マスターナンバー（11・22・33）はそこで止める
-export function reduceNumber(n, masters = [11, 22, 33]) {
+// 一桁になるまで各桁を足す（ver2.5：マスターナンバーで止めない）
+//   一桁になるまで足すことは「9で割った余り」（余り0なら9）を出すことと同じ（九去法）。
+//   そのため、全桁を一度に足しても、年・月・日を先に一桁にしてから足しても、結果は必ず一致する。
+//   足し方で結果が分かれていたのは、途中の 11・22・33 で止めるかどうかだけだった
+export function reduceNumber(n, masters = []) {
   let v = n;
   while (v >= 10 && !masters.includes(v)) {
     v = String(v).split("").reduce((a, c) => a + parseInt(c), 0);
@@ -57,9 +58,9 @@ export function reduceNumber(n, masters = [11, 22, 33]) {
   return v;
 }
 
-// 誕生日の数（日）：才能。1〜9、または 11・22
+// 誕生日の数（日）：才能。1〜9
 export function computeBirthdayNumber(day) {
-  return String(reduceNumber(day, [11, 22]));
+  return String(reduceNumber(day));
 }
 
 // 誕生日の役割（v2.0）
@@ -99,6 +100,7 @@ export function getNumerologyL1(year, month, day) {
 //   一部重なる  ：使命数・誕生日の数・月の数のどれかの動きが、名の動きに含まれる
 //   二つの顔   ：どれも重ならない（名前と誕生日が別の面を持つ＝二面性）
 // 名の動きは数秘で並べ替える前のもの（fn_L2.process）を使う
+// ver2.4：本番では使わない（judgeNameBirthdayGogyo に置き換え）。数→動きの対応表が自作で根が浅いため。比較用に残す
 export function judgeNameBirthdayOverlap(n_L1, fn_L2) {
   if (!n_L1 || !n_L1.roles) return null;
   const nameProcess = (fn_L2 && fn_L2.process) || [];

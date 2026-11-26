@@ -6,7 +6,8 @@ import {
   adjustWithNumerology,
   transformWithSurname,
 } from '../utils/kotodamaEngine';
-import { getNumerologyL1, getNumerologyAdjustment, judgeNameBirthdayOverlap } from '../utils/numerologyEngine';
+import { getNumerologyL1, getNumerologyAdjustment } from '../utils/numerologyEngine';
+import { judgeNameBirthdayGogyo } from '../utils/gogyoEngine';
 
 export default function InputForm({ initial, onSubmit, onBack }) {
   const [form, setForm] = useState(() => ({
@@ -59,7 +60,8 @@ export default function InputForm({ initial, onSubmit, onBack }) {
     const ln_interface = lastName ? getSurnameInterface(lastName.trim()) : null;
     const n_L1 = getNumerologyL1(y, m, d);
     const n_adj = getNumerologyAdjustment(n_L1);
-    const overlap = judgeNameBirthdayOverlap(n_L1, fn_L2);
+    // ver2.4：名前と誕生日の重なりは、名前の音の五行と、生まれた日の納音の五行で判定する
+    const overlap = firstName ? judgeNameBirthdayGogyo(firstName.trim(), y, m, d) : null;
     const adjustedState = fn_L2 ? adjustWithNumerology(fn_L2, n_adj) : null;
     const output = adjustedState ? transformWithSurname(adjustedState, ln_interface) : null;
 
@@ -82,7 +84,7 @@ export default function InputForm({ initial, onSubmit, onBack }) {
   return (
     <div className="input-screen">
       <div className="input-header">
-        <div className="logo-small">KOTONE · MY PURPOSE<span className="beta-badge">ver2.2</span></div>
+        <div className="logo-small">KOTONE · MY PURPOSE<span className="beta-badge">ver2.5</span></div>
         <h2>診断情報の入力</h2>
       </div>
 

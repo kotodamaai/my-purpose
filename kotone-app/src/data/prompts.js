@@ -30,11 +30,12 @@ export function getCoreFromName(firstName) {
 
 // 誕生日の3つの役割を、数字を出さずに文章で渡す（数字解説は禁止のため）
 const OVERLAP_NOTE = {
-  "二重に刻まれた": "使命の動きが、お名前の動きの先頭と同じ。名前と誕生日の両方に刻まれているので、より強く表れやすい",
-  "一部重なる": "誕生日の動きの一部が、お名前の動きにも含まれている。重なる部分は強まり、重ならない部分は別の面として表れる",
-  "二つの顔": "誕生日の動きは、お名前の動きと重ならない。名前の顔と誕生日の顔、二つの面（二面性）を持つ",
+  // ver2.4：名前の音と、生まれた日の響き（納音）を同じ五行で比べた結果。使命（使命数）とは別の物差しなので、「使命と重なる」とは書かせない
+  "二重に刻まれた": "お名前の核の響きと、生まれた日の響きが同じ。名前と生まれた日の両方に刻まれているので、その人らしさがより強く表れやすい",
+  "響き合う": "お名前の核の響きと、生まれた日の響きが、互いを生み育てる関係にある。名前の力と生まれ持った力が支え合って表れやすい",
+  "一部重なる": "お名前の核とは別の響きだが、お名前の中に生まれた日と同じ響きも含まれている。重なる部分は強まり、それ以外は別の面として表れる",
+  "二つの顔": "お名前の響きと、生まれた日の響きが重ならない。名前の顔と生まれた日の顔、二つの面（二面性）を持ち、それが奥行きになる",
 };
-const ROLE_MOTION_LABEL = { mission: "使命", talent: "才能", soil: "育ちの土壌" };
 export function buildBirthdayBlock(n_L1, overlap) {
   if (!n_L1 || !n_L1.roles) return "（生年月日なし）";
   const t = (num) => NUMEROLOGY_L3[num] || null;
@@ -45,8 +46,7 @@ export function buildBirthdayBlock(n_L1, overlap) {
   lines.push(`育ちの土壌（補助。誕生月から。人生の前半を形づくる地盤）: ${so ? `${so.本質}` : "不明"}`);
   if (m) lines.push(`使命の光と影: ${m.光と影}`);
   if (overlap) {
-    const which = overlap.matched.map(x => ROLE_MOTION_LABEL[x.role]).join("・");
-    lines.push(`名前との重なり: ${overlap.type}（${OVERLAP_NOTE[overlap.type]}${which ? `。重なっているのは${which}` : ""}）`);
+    lines.push(`名前と生まれた日の重なり: ${overlap.type}（${OVERLAP_NOTE[overlap.type] || ""}）`);
   }
   return lines.join("\n");
 }
@@ -81,7 +81,6 @@ ${core || "（取得できず）"}
 動きの方向: ${directionStr}
 プロセス: ${adjustedState ? adjustedState.process.join(" → ") : "不明"}
 修飾: ${adjustedState && adjustedState.modifier && adjustedState.modifier.length ? adjustedState.modifier.join(", ") : "なし"}
-数秘補正後の優先motion: ${n_adj && n_adj.priority && n_adj.priority.length ? n_adj.priority.join(", ") : "なし"}
 
 ◆ 誕生日（名前とは切り分けて読む。重なれば強く、相反すれば二面性）
 ${buildBirthdayBlock(n_L1, overlap)}
@@ -179,7 +178,7 @@ ${GENDER_RULE}
 【出力構造（厳守）】
 ① この人が生まれ持った使命を1文で（書き出し自由・数字禁止・定型句禁止）
 ② その使命を、才能と育ちの土壌がどう支えているか（2文。「たとえば〜」で具体的な場面を1つ含める）
-③ 「名前との重なり」に従って1文：二重に刻まれた→名前の動きとも重なり、より強く表れやすいこと／一部重なる→重なる部分は強まり、それ以外は別の面として表れること／二つの顔→名前の動きとは別の顔を持ち、その二面性が奥行きになること
+③ 「名前と生まれた日の重なり」に従って1文（使命との重なりとしては書かない）：二重に刻まれた→名前と生まれた日の両方に刻まれ、より強く表れやすいこと／響き合う→名前の力と生まれ持った力が支え合うこと／一部重なる→重なる部分は強まり、それ以外は別の面として表れること／二つの顔→名前とは別の顔を持ち、その二面性が奥行きになること
 【入力データ】
 ${inputData}
 ${CONFIDENTIAL_RULE}

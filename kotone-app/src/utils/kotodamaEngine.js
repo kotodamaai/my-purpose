@@ -262,10 +262,14 @@ export function getSurnameInterface(lastName) {
   return { sounds: sounds.map(s => s.ch), raw_scores: scores, labels };
 }
 
+export const REORDER_BY_NUMEROLOGY = false;
+
 export function adjustWithNumerology(firstName_L2, numerologyAdj) {
   if (!firstName_L2) return null;
+  // ver2.4：誕生日で名の動きの順番を入れ替えるのをやめた（名前と誕生日は切り分けて読む。旧方式では約4割の人で名の先頭の動きが誕生日に書き換わっていた）
+  //          REORDER_BY_NUMEROLOGY を true にすると旧動作に戻る
   let process = [...firstName_L2.process];
-  if (numerologyAdj && numerologyAdj.priority.length > 0) {
+  if (REORDER_BY_NUMEROLOGY && numerologyAdj && numerologyAdj.priority.length > 0) {
     const reordered = [];
     for (const p of numerologyAdj.priority) {
       if (process.includes(p)) reordered.push(p);
