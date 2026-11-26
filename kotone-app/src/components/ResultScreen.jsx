@@ -111,6 +111,11 @@ export default function ResultScreen({ data, onRestart }) {
         当てはまるかどうかは、ご自身の体感と照らし合わせてください。
       </p>
 
+      {sections.some(s => s.model) && (
+        <p className="model-note" style={{ fontSize: '0.7rem', opacity: 0.5, textAlign: 'center', margin: '1.5rem 0 0.5rem' }}>
+          生成：{[...new Set(sections.map(s => s.model).filter(Boolean).map(m => m.replace(/[↑修]$/, '')))].join(' / ')}
+        </p>
+      )}
       <button className="restart-btn" onClick={onRestart}>
         もう一度診断する
       </button>
