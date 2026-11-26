@@ -16,25 +16,43 @@ function waitUntilVisible() {
   });
 }
 
-async function callProxyOnce(prompt, model, maxTokens, temperature) {
+// ver3.3：モデルを 5.5 世代に切り替え
+//   fast（各セクションの生成・点検）＝ Claude Haiku 5.5／strong（作り直し・修正）＝ Claude Sonnet 5.5
+//   5.5 世代は temperature を受け付けない（指定すると 400）。考える量は output_config.effort で決める
+//   Haiku 5.5 は考える処理を止められないので effort を low にし、考える分のトークンを max_tokens に上乗せする
+//   Sonnet 5.5 は thinking: between_tools で前もって考える処理を止める
+//   中継サーバーが 5.5 世代を受け付けない場合（400/404）は、4.5 世代に自動で戻す
+const MODELS = {
+  fast:   { id: "claude-haiku-5-5",  extra: { thinking: { type: "adaptive" },      output_config: { effort: "low" } }, thinkHeadroom: 1500 },
+  strong: { id: "claude-sonnet-5-5", extra: { thinking: { type: "between_tools" }, output_config: { effort: "low" } }, thinkHeadroom: 300 },
+};
+const LEGACY_MODELS = { fast: "claude-haiku-4-5-20251001", strong: "claude-sonnet-4-5" };
+const NEW_TOKENIZER_FACTOR = 1.3; // 5.5 世代は同じ文章を約3割多いトークンで数える
+let useLegacy = false;
+export const modelLabel = (role) => (useLegacy ? { fast: "Haiku4.5", strong: "Sonnet4.5" } : { fast: "Haiku5.5", strong: "Sonnet5.5" })[role];
+
+function buildBody(prompt, role, maxTokens, temperature) {
+  const messages = [{ role: "user", content: prompt }];
+  if (useLegacy) return { model: LEGACY_MODELS[role], max_tokens: maxTokens, temperature, messages };
+  const m = MODELS[role];
+  return { model: m.id, max_tokens: Math.ceil(maxTokens * NEW_TOKENIZER_FACTOR) + m.thinkHeadroom, ...m.extra, messages };
+}
+
+async function callProxyOnce(body) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
   try {
     const resp = await fetch(PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        temperature,
-        messages: [{ role: "user", content: prompt }],
-      }),
+      body: JSON.stringify(body),
       signal: ctrl.signal,
     });
     if (!resp.ok) {
       const e = await resp.json().catch(() => ({}));
       const err = new Error(e.error?.message || `HTTP ${resp.status}`);
       err.retryable = resp.status === 429 || resp.status >= 500;
+      err.status = resp.status;
       throw err;
     }
     const data = await resp.json();
@@ -49,12 +67,19 @@ async function callProxyOnce(prompt, model, maxTokens, temperature) {
   }
 }
 
-export async function callProxy(prompt, model, maxTokens = 550, temperature = 0.5) {
+// role: "fast"（Haiku）か "strong"（Sonnet）。temperature は 4.5 世代に戻ったときだけ使う
+export async function callProxy(prompt, role, maxTokens = 550, temperature = 0.5) {
   for (let attempt = 0; ; attempt++) {
+    const sentLegacy = useLegacy; // 同時に走る呼び出しがあるので、送った時点の世代で判断する
     try {
       await waitUntilVisible();
-      return await callProxyOnce(prompt, model, maxTokens, temperature);
+      return await callProxyOnce(buildBody(prompt, role, maxTokens, temperature));
     } catch (e) {
+      if (!sentLegacy && (e.status === 400 || e.status === 404)) {
+        if (!useLegacy) console.warn("[KOTONE] 5.5 世代のモデルが使えなかったため 4.5 世代に戻します:", e.message);
+        useLegacy = true;
+        continue;
+      }
       if (!e.retryable || attempt >= RETRY_WAITS_MS.length) throw e;
       await sleep(RETRY_WAITS_MS[attempt]);
     }
@@ -81,7 +106,7 @@ function shouldUseSonnet(idx, text) {
 
 async function selfCheck(text) {
   const p = `以下の文章を読み、不自然な表現・意味ズレしている動詞や比喩があれば「NG: 箇所 → 修正案」の形で1行だけ返してください。なければ「OK」とだけ返してください。\n\n---\n${text}`;
-  return (await callProxy(p, "claude-haiku-4-5-20251001", 60)).trim();
+  return (await callProxy(p, "fast", 60)).trim();
 }
 
 /**
@@ -100,8 +125,6 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
   const inputs = buildSectionInputs(firstName, lastName, gender, stateWithInteraction, ln_interface, n_adj, n_L1, overlap);
   const sections = buildSectionPrompts(inputs.full, inputs);
 
-  const haiku = "claude-haiku-4-5-20251001";
-  const sonnet = "claude-sonnet-4-5";
 
   // 作る順番（表示の順番とは別）。表示は キャッチ → 説明 の順のまま
   //   ① お名前から見えること・お誕生日から見えること・光と影（互いに独立なので同時に作る。ver3.1）
@@ -121,13 +144,14 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
     try {
       // キャッチ(idx=0)は毎回ぶれないよう揺らぎを抑える
       const temp = i === 0 ? 0.1 : 0.5;
-      let text = await callProxy(sec.prompt, haiku, 550, temp);
-      let usedModel = "Haiku";
+      let text = await callProxy(sec.prompt, "fast", 550, temp);
+      let usedModel = modelLabel("fast");
 
-      if (shouldUseSonnet(i, text)) {
+      // 考える処理で max_tokens を使い切って本文が空になったときも Sonnet で作り直す（ver3.3）
+      if (!text.trim() || shouldUseSonnet(i, text)) {
         if (onSectionStart) onSectionStart(i, sec.title, "retry-sonnet");
-        text = await callProxy(sec.prompt, sonnet, 550, temp);
-        usedModel = "Sonnet↑";
+        text = await callProxy(sec.prompt, "strong", 550, temp);
+        usedModel = modelLabel("strong") + "↑";
       }
 
       if (onSectionStart) onSectionStart(i, sec.title, "checking");
@@ -139,10 +163,10 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
         if (onSectionStart) onSectionStart(i, sec.title, "fixing");
         text = await callProxy(
           sec.prompt + `\n\n【前回の問題点】\n${checkResult}\n上記を修正して再生成してください。`,
-          sonnet,
+          "strong",
           550,
         );
-        usedModel = "Sonnet修";
+        usedModel = modelLabel("strong") + "修";
       }
 
       // 構造指示の番号（①②③）が本文に漏れたら取り除く
