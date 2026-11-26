@@ -1,22 +1,72 @@
-import { PROXY_URL, buildPromptInput, buildSectionPrompts } from '../data/prompts.js';
+import { PROXY_URL, buildSectionInputs, buildSectionPrompts } from '../data/prompts.js';
+
+// ver3.1：スマホで「Load failed」（通信が途中で切れる）が出るため、
+//   ・1回の通信に時間制限（60秒）を設ける
+//   ・通信エラー・タイムアウト・429/5xx は、少し待って最大2回やり直す
+//   ・画面が裏に回っている間は、表に戻るまで待ってからやり直す
+const REQUEST_TIMEOUT_MS = 60000;
+const RETRY_WAITS_MS = [1500, 4000];
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+function waitUntilVisible() {
+  if (typeof document === "undefined" || !document.hidden) return Promise.resolve();
+  return new Promise(resolve => {
+    const onVis = () => { if (!document.hidden) { document.removeEventListener("visibilitychange", onVis); resolve(); } };
+    document.addEventListener("visibilitychange", onVis);
+  });
+}
+
+async function callProxyOnce(prompt, model, maxTokens, temperature) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const resp = await fetch(PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        temperature,
+        messages: [{ role: "user", content: prompt }],
+      }),
+      signal: ctrl.signal,
+    });
+    if (!resp.ok) {
+      const e = await resp.json().catch(() => ({}));
+      const err = new Error(e.error?.message || `HTTP ${resp.status}`);
+      err.retryable = resp.status === 429 || resp.status >= 500;
+      throw err;
+    }
+    const data = await resp.json();
+    return data.content?.map(c => c.text || "").join("") || "";
+  } catch (e) {
+    // fetch 自体の失敗（Safari の「Load failed」、Chrome の「Failed to fetch」）と時間切れはやり直し対象
+    if (e.name === "AbortError") { const t = new Error("時間切れ"); t.retryable = true; throw t; }
+    if (e instanceof TypeError) e.retryable = true;
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export async function callProxy(prompt, model, maxTokens = 550, temperature = 0.5) {
-  const resp = await fetch(PROXY_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      temperature,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-  if (!resp.ok) {
-    const e = await resp.json().catch(() => ({}));
-    throw new Error(e.error?.message || `HTTP ${resp.status}`);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await waitUntilVisible();
+      return await callProxyOnce(prompt, model, maxTokens, temperature);
+    } catch (e) {
+      if (!e.retryable || attempt >= RETRY_WAITS_MS.length) throw e;
+      await sleep(RETRY_WAITS_MS[attempt]);
+    }
   }
-  const data = await resp.json();
-  return data.content?.map(c => c.text || "").join("") || "";
+}
+
+// 生成のあいだ画面が消えないようにする（対応ブラウザのみ。iOS Safari 16.4 以降など）
+async function requestWakeLock() {
+  try {
+    if (typeof navigator !== "undefined" && navigator.wakeLock) return await navigator.wakeLock.request("screen");
+  } catch { /* 対応していない・許可されない場合は何もしない */ }
+  return null;
 }
 
 function shouldUseSonnet(idx, text) {
@@ -44,24 +94,24 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
     ? { ...adjustedState, interaction: output ? output.interaction : null }
     : null;
 
-  const inputData = buildPromptInput(firstName, lastName, gender, stateWithInteraction, ln_interface, n_adj, n_L1, overlap);
-  const sections = buildSectionPrompts(inputData);
+  const inputs = buildSectionInputs(firstName, lastName, gender, stateWithInteraction, ln_interface, n_adj, n_L1, overlap);
+  const sections = buildSectionPrompts(inputs.full, inputs);
 
   const haiku = "claude-haiku-4-5-20251001";
   const sonnet = "claude-sonnet-4-5";
 
   // 作る順番（表示の順番とは別）。表示は キャッチ → 説明 の順のまま
-  //   お名前から見えること → お誕生日から見えること → 現象サマリー（両方を踏まえる）
-  //   → キャッチ（お名前・現象サマリーから作る）→ 光と影 → 締め（キャッチを受ける）
+  //   ① お名前から見えること・お誕生日から見えること・光と影（互いに独立なので同時に作る。ver3.1）
+  //   ② 現象サマリー（お名前・お誕生日を踏まえる）→ ③ キャッチ（お名前・現象サマリーから）→ ④ 締め（キャッチを受ける）
   // 数字は表示の位置（0:キャッチ 1:現象サマリー 2:お名前 3:お誕生日 4:光と影 5:締め）
-  const GENERATION_ORDER = [2, 3, 1, 0, 4, 5];
+  const GENERATION_STEPS = [[2, 3, 4], [1], [0], [5]];
   // 先に書いた文章を、後のプロンプトへ差し込む
   const FILL = { 2: "__NAME__", 3: "__BIRTH__", 1: "__SUMMARY__", 0: "__CATCH__" };
   const fill = (token, value) => {
     for (const s2 of sections) s2.prompt = s2.prompt.split(token).join(value);
   };
 
-  for (const i of GENERATION_ORDER) {
+  const runSection = async (i) => {
     const sec = sections[i];
     if (onSectionStart) onSectionStart(i, sec.title, "generating");
 
@@ -102,5 +152,14 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
       if (FILL[i]) fill(FILL[i], "（未取得）");
       if (onSectionComplete) onSectionComplete(i, sec.title, null, null, false, String(e.message || e));
     }
+  };
+
+  const wakeLock = await requestWakeLock();
+  try {
+    for (const step of GENERATION_STEPS) {
+      await Promise.all(step.map(runSection));
+    }
+  } finally {
+    try { if (wakeLock) await wakeLock.release(); } catch { /* 何もしない */ }
   }
 }

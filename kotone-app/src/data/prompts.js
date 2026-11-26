@@ -13,7 +13,7 @@ export const CONFIDENTIAL_RULE = `【絶対禁止】
 // 性別の扱い（ver2.2）：核と才能は性別で変えない。性別は言葉づかいにだけ使う
 export const GENDER_RULE = `【性別の扱い】
 ・性別は、呼びかけや言葉づかいが不自然にならないためだけに使う。性格・才能・場面の読みには使わない
-・「この人の核」を主役に、入力データの特徴は渡された順番のまま扱う。性別を理由に、前に出す特徴を入れ替えたり弱めたりしない
+・入力データの特徴は渡された順番のまま扱う（何を主役にするかは入力データの指示に従う）。性別を理由に、前に出す特徴を入れ替えたり弱めたりしない
 ・場面や小物を、性別からの決まりきった連想で選ばない（家事・装い・恋愛・「母親役」「兄貴分」など）
 ・入れ替えテスト：書いた場面が、性別を入れ替えても不自然にならないかを確かめ、不自然なら場面を替える`;
 
@@ -36,7 +36,7 @@ const OVERLAP_NOTE = {
   "一部重なる": "お名前の核とは別の響きだが、お名前の中に生まれた日と同じ響きも含まれている。重なる部分は強まり、それ以外は別の面として表れる",
   "二つの顔": "お名前の響きと、生まれた日の響きが重ならない。名前の顔と生まれた日の顔、二つの面（二面性）を持ち、それが奥行きになる",
 };
-export function buildBirthdayBlock(n_L1, overlap) {
+export function buildBirthdayBlock(n_L1, overlap, { withOverlap = true } = {}) {
   if (!n_L1 || !n_L1.roles) return "（生年月日なし）";
   const t = (num) => NUMEROLOGY_L3[num] || null;
   const m = t(n_L1.roles.mission.num), ta = t(n_L1.roles.talent.num), so = t(n_L1.roles.soil.num);
@@ -45,10 +45,27 @@ export function buildBirthdayBlock(n_L1, overlap) {
   lines.push(`才能（補助。誕生日の日から）: ${ta ? `${ta.力名}。${ta.行動傾向}` : "不明"}`);
   lines.push(`育ちの土壌（補助。誕生月から。人生の前半を形づくる地盤）: ${so ? `${so.本質}` : "不明"}`);
   if (m) lines.push(`使命の光と影: ${m.光と影}`);
-  if (overlap) {
+  if (overlap && withOverlap) {
     lines.push(`名前と生まれた日の重なり: ${overlap.type}（${OVERLAP_NOTE[overlap.type] || ""}）`);
   }
   return lines.join("\n");
+}
+
+// ver3.1：セクションごとに渡す入力を分ける
+//   お名前から見えること → 名前の情報だけ／お誕生日から見えること → 誕生日の情報だけ（名前との重なりも渡さない）
+//   それ以外（キャッチ・現象サマリー・光と影・締め）→ 全部
+export function buildSectionInputs(firstName, lastName, gender, adjustedState, ln_interface, n_adj, n_L1, overlap) {
+  const full = buildPromptInput(firstName, lastName, gender, adjustedState, ln_interface, n_adj, n_L1, overlap);
+  const blocks = full.split(/\n(?=◆ )/);
+  const pick = (...heads) => blocks.filter(b => heads.some(h => b.startsWith(h))).join("\n");
+  const name = pick("◆ この人の核", "◆ 属性", "◆ 名(エンジン)", "◆ 姓(インターフェース)", "◆ 名×姓");
+  const genderStr = gender === "male" ? "男性" : gender === "female" ? "女性" : "その他";
+  const birthday = `◆ 属性
+性別: ${genderStr}（言葉づかいのためだけに使う）
+
+◆ 誕生日
+${buildBirthdayBlock(n_L1, overlap, { withOverlap: false })}`;
+  return { full, name, birthday };
 }
 
 export function buildPromptInput(firstName, lastName, gender, adjustedState, ln_interface, n_adj, n_L1, overlap) {
@@ -95,7 +112,9 @@ openness: ${ln_interface ? ln_interface.labels.openness : "不明"} / visibility
 ${interStr}`;
 }
 
-export function buildSectionPrompts(inputData) {
+export function buildSectionPrompts(inputData, parts = {}) {
+  const nameInput = parts.name || inputData;
+  const birthdayInput = parts.birthday || inputData;
   return [
     { title:"あなたはこんな人", prompt:`あなたはKOTONEという自己理解診断アプリの、一流のコピーライターです。
 診断を受けた人が「これ、わたしのことだ」と感じ、心が動く一行を書いてください。
@@ -153,7 +172,7 @@ __BIRTH__
 【出力構造（厳守）】
 ① この人の力が自然に活きている日常の場面を1文で（書き出し自由・定型句禁止）
 ② 「たとえば、〜」で始まる具体シーン（2〜3文）。周囲の人の好意的なセリフを「」付きで1つ含める（感謝・驚き・楽しさ・「あなたがいると〜」など）
-③ その場面の根っこにある力を、温かく1文で言い添える（「でも」で始めない）
+③ その場面の根っこにある力を、温かく1文で言い添える（「でも」で始めない）。入力データの「名前と生まれた日の重なり」に合わせる：二重に刻まれた→名前と生まれた日の両方に刻まれた力として／響き合う→名前の力と生まれ持った力が支え合う形として／一部重なる→重なる部分がとくに強く表れる形として／二つの顔→二つの面が奥行きになる形として
 【禁止】周囲の困惑・苦情・ツッコミ・誤解（「また変わったの？」「そろそろ結論を」等）/ 短所や影の示唆（影は別セクションで扱う）/ 「かもしれません」の連続（使うのは1回まで）
 【入力データ】
 ${inputData}
@@ -168,19 +187,20 @@ ${GENDER_RULE}
 ② 具体的な状況→行動→結果の流れ（2〜3文）
 ③ 「この動き方は、〜という形で現れやすいかもしれません」（1文）
 【入力データ】
-${inputData}
+${nameInput}
 ${CONFIDENTIAL_RULE}
 ${GENDER_RULE}
 構造①〜③のみ出力。前置き不要。` },
     { title:"お誕生日から見えること", prompt:`あなたはKOTONEという自己理解診断アプリの診断文ライターです。
-【タスク】入力データの「◆ 誕生日」をもとに、この人が生まれ持った使命と、それを支える才能・育ちの土壌を書いてください。
+【タスク】入力データの「◆ 誕生日」だけをもとに、この人が生まれ持った使命と、それを支える才能・育ちの土壌を書いてください。
+【重要】このセクションはお誕生日だけを扱います。お名前・名前の音・名前との重なりへの言及は厳禁。
 主役は「使命」。「才能」と「育ちの土壌」は使命を支える補助として扱う。
 【出力構造（厳守）】
 ① この人が生まれ持った使命を1文で（書き出し自由・数字禁止・定型句禁止）
 ② その使命を、才能と育ちの土壌がどう支えているか（2文。「たとえば〜」で具体的な場面を1つ含める）
-③ 「名前と生まれた日の重なり」に従って1文（使命との重なりとしては書かない）：二重に刻まれた→名前と生まれた日の両方に刻まれ、より強く表れやすいこと／響き合う→名前の力と生まれ持った力が支え合うこと／一部重なる→重なる部分は強まり、それ以外は別の面として表れること／二つの顔→名前とは別の顔を持ち、その二面性が奥行きになること
+③ この人が生まれ持った使命を、言い切りで1文にまとめ直す（「あなたが生まれ持った使命は、〜ことです」の形。①と同じ言い回しを繰り返さない）
 【入力データ】
-${inputData}
+${birthdayInput}
 ${CONFIDENTIAL_RULE}
 ${GENDER_RULE}
 構造①〜③のみ出力。前置き不要。` },
