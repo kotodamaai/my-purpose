@@ -69,8 +69,11 @@ async function requestWakeLock() {
   return null;
 }
 
+// ver3.2：場面を書くことになっているセクション（1:現象サマリー 2:お名前 3:お誕生日）だけを判定する。
+//   光と影・締めはもともと「たとえば」を使わない構成なので、ここで毎回 Sonnet の作り直しが起きていた
+const SCENE_SECTIONS = new Set([1, 2, 3]);
 function shouldUseSonnet(idx, text) {
-  if (idx === 0) return false;
+  if (!SCENE_SECTIONS.has(idx)) return false;
   if (!text) return false;
   if (!/たとえば|会議|誰か|場面|場合/.test(text)) return true;
   return false;
@@ -129,7 +132,8 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
 
       if (onSectionStart) onSectionStart(i, sec.title, "checking");
       const checkResult = await selfCheck(text);
-      const checkOk = checkResult.trim() === "OK";
+      // ver3.2：答えに「NG」が入っているときだけ不合格にする（「OK。」「OKです」などを不合格にしない）
+      const checkOk = !/NG/i.test(checkResult);
 
       if (!checkOk) {
         if (onSectionStart) onSectionStart(i, sec.title, "fixing");
