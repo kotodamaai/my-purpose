@@ -1,14 +1,8 @@
 import { useEffect, useState } from 'react';
 import { generateAllSections } from '../utils/aiGenerator';
+import { SECTION_TITLES } from '../data/prompts';
 
-const SECTION_TITLES = [
-  'あなたはこんな人',
-  '現象サマリー',
-  'お名前から見えること',
-  'お誕生日から見えること',
-  '光と影',
-  '締め',
-];
+// ver3.5：見出しは prompts.js と共通（表示順＝0 キャッチ／1 使命／2 使命のサイン／3 道具／4 道具のサイン／5 問い）
 
 const STATUS_LABELS = {
   pending: '待機中...',
@@ -74,7 +68,7 @@ export default function ResultScreen({ data, onRestart }) {
   return (
     <div className="result-screen">
       <div className="result-header">
-        <div className="logo-small">KOTONE · MY PURPOSE<span className="beta-badge">ver3.3</span></div>
+        <div className="logo-small">KOTONE · MY PURPOSE Ⅱ<span className="beta-badge">ver0.1</span></div>
         <div className="result-name">{displayName || firstName}</div>
         <div className="result-date">{displayDate}生まれ</div>
       </div>

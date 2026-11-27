@@ -56,7 +56,9 @@ async function callProxyOnce(body) {
       throw err;
     }
     const data = await resp.json();
-    return data.content?.map(c => c.text || "").join("") || "";
+    const text = data.content?.map(c => c.text || "").join("") || "";
+    if (!text.trim()) console.warn("[KOTONE] 本文が空で返りました", { model: body.model, stop_reason: data.stop_reason, usage: data.usage });
+    return text;
   } catch (e) {
     // fetch 自体の失敗（Safari の「Load failed」、Chrome の「Failed to fetch」）と時間切れはやり直し対象
     if (e.name === "AbortError") { const t = new Error("時間切れ"); t.retryable = true; throw t; }
@@ -94,19 +96,9 @@ async function requestWakeLock() {
   return null;
 }
 
-// ver3.2：場面を書くことになっているセクション（1:現象サマリー 2:お名前 3:お誕生日）だけを判定する。
-//   光と影・締めはもともと「たとえば」を使わない構成なので、ここで毎回 Sonnet の作り直しが起きていた
-const SCENE_SECTIONS = new Set([1, 2, 3]);
-function shouldUseSonnet(idx, text) {
-  if (!SCENE_SECTIONS.has(idx)) return false;
-  if (!text) return false;
-  if (!/たとえば|会議|誰か|場面|場合/.test(text)) return true;
-  return false;
-}
-
 async function selfCheck(text) {
   const p = `以下の文章を読み、不自然な表現・意味ズレしている動詞や比喩があれば「NG: 箇所 → 修正案」の形で1行だけ返してください。なければ「OK」とだけ返してください。\n\n---\n${text}`;
-  return (await callProxy(p, "fast", 60)).trim();
+  return (await callProxy(p, "strong", 60)).trim();
 }
 
 /**
@@ -123,16 +115,16 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
     : null;
 
   const inputs = buildSectionInputs(firstName, lastName, gender, stateWithInteraction, ln_interface, n_adj, n_L1, overlap);
-  const sections = buildSectionPrompts(inputs.full, inputs);
+  const sections = buildSectionPrompts(inputs);
 
 
-  // 作る順番（表示の順番とは別）。表示は キャッチ → 説明 の順のまま
-  //   ① お名前から見えること・お誕生日から見えること・光と影（互いに独立なので同時に作る。ver3.1）
-  //   ② 現象サマリー（お名前・お誕生日を踏まえる）→ ③ キャッチ（お名前・現象サマリーから）→ ④ 締め（キャッチを受ける）
-  // 数字は表示の位置（0:キャッチ 1:現象サマリー 2:お名前 3:お誕生日 4:光と影 5:締め）
-  const GENERATION_STEPS = [[2, 3, 4], [1], [0], [5]];
+  // 作る順番（表示の順番とは別）。ver3.5
+  //   ① 生まれ持った使命・使命のサイン・道具・道具のサイン（互いに独立なので同時に作る）
+  //   ② キャッチと問い（どちらも ①の「使命」と「道具」の本文だけを材料にする）
+  // 数字は表示の位置（0:キャッチ 1:生まれ持った使命 2:使命のサイン 3:道具 4:道具のサイン 5:問い）
+  const GENERATION_STEPS = [[1, 2, 3, 4], [0, 5]];
   // 先に書いた文章を、後のプロンプトへ差し込む
-  const FILL = { 2: "__NAME__", 3: "__BIRTH__", 1: "__SUMMARY__", 0: "__CATCH__" };
+  const FILL = { 1: "__MISSION__", 3: "__TOOL__" };
   const fill = (token, value) => {
     for (const s2 of sections) s2.prompt = s2.prompt.split(token).join(value);
   };
@@ -144,11 +136,12 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
     try {
       // キャッチ(idx=0)は毎回ぶれないよう揺らぎを抑える
       const temp = i === 0 ? 0.1 : 0.5;
-      let text = await callProxy(sec.prompt, "fast", 550, temp);
-      let usedModel = modelLabel("fast");
+      // ver3.4：最初から Sonnet 5.5 で作る（ver3.3 の公開版では、Haiku 5.5 の結果がすべて Sonnet に作り直されていたため）
+      let text = await callProxy(sec.prompt, "strong", 550, temp);
+      let usedModel = modelLabel("strong");
 
-      // 考える処理で max_tokens を使い切って本文が空になったときも Sonnet で作り直す（ver3.3）
-      if (!text.trim() || shouldUseSonnet(i, text)) {
+      // 本文が空で返ったときだけ、もう一度作る
+      if (!text.trim()) {
         if (onSectionStart) onSectionStart(i, sec.title, "retry-sonnet");
         text = await callProxy(sec.prompt, "strong", 550, temp);
         usedModel = modelLabel("strong") + "↑";
@@ -157,6 +150,8 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
       if (onSectionStart) onSectionStart(i, sec.title, "checking");
       const checkResult = await selfCheck(text);
       // ver3.2：答えに「NG」が入っているときだけ不合格にする（「OK。」「OKです」などを不合格にしない）
+      //   ver3.4：点検も Sonnet で行う。点検の答えが空のときは合格扱いにせず、そのまま通したことを記録する
+      if (!checkResult) console.warn("[KOTONE] 点検の答えが空でした（セクション", i, "）");
       const checkOk = !/NG/i.test(checkResult);
 
       if (!checkOk) {

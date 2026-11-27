@@ -2,7 +2,7 @@ export default function TopScreen({ onStart }) {
   return (
     <div className="top-screen">
       <div className="top-logo">KOTONE PLATFORM</div>
-      <h1 className="top-title">MY PURPOSE<span className="beta-badge">ver3.3</span></h1>
+      <h1 className="top-title">MY PURPOSE Ⅱ<span className="beta-badge">ver0.1</span></h1>
       <svg className="top-wave" viewBox="0 0 160 24" aria-hidden="true">
         <path d="M0 12 C 10 2, 20 2, 30 12 S 50 22, 60 12 S 80 2, 90 12 S 110 22, 120 12 S 140 2, 150 12 L 160 12" />
       </svg>
