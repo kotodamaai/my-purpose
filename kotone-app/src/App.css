@@ -1,16 +1,18 @@
 :root {
-  /* Ⅰ版パレット「藤と墨」：藤色の淡い地に墨の文字、差し色に藤紫と青碧 */
-  --bg: #e8e3f1;
-  --bg-panel: #f2eff8;
+  /* Ⅱ版パレット「若葉と墨」：薄いグリーンの地に墨の文字、差し色に深緑と青碧（ver3.5）
+     Ⅰ版「藤と墨」：--bg #e8e3f1 / --bg-panel #f2eff8 / --ink #1e1b2b / --ink-2 #4a4659 / --ink-3 #8b879a /
+                   --line #d2cbe0 / --accent #6a55a8 / --accent-3 #8a7fb5 / --accent-soft #efeaf8 */
+  --bg: #e4efe6;
+  --bg-panel: #eef6f0;
   --bg-card: #ffffff;
-  --ink: #1e1b2b;
-  --ink-2: #4a4659;
-  --ink-3: #8b879a;
-  --line: #d2cbe0;
-  --accent: #6a55a8;
+  --ink: #1c2620;
+  --ink-2: #45564b;
+  --ink-3: #7f9286;
+  --line: #c9ddcf;
+  --accent: #3d7a57;
   --accent-2: #2e6670;
-  --accent-3: #8a7fb5;
-  --accent-soft: #efeaf8;
+  --accent-3: #6f9a80;
+  --accent-soft: #e8f3eb;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -290,7 +292,7 @@ body {
 .catch-section .section-body {
   text-align: center;
   padding: 32px 24px;
-  background: linear-gradient(180deg, #faf9fd 0%, #f1edf8 100%);
+  background: linear-gradient(180deg, #f8fcf9 0%, #ecf5ee 100%);
 }
 
 .catch-text {
@@ -503,7 +505,7 @@ body {
 
 .sr-item {
   padding: 12px 0;
-  border-bottom: 1px solid #ebe8f2;
+  border-bottom: 1px solid #e3eee6;
 }
 
 .sr-item:last-child { border-bottom: none; }

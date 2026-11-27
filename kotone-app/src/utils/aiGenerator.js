@@ -115,16 +115,16 @@ export async function generateAllSections(params, onSectionComplete, onSectionSt
     : null;
 
   const inputs = buildSectionInputs(firstName, lastName, gender, stateWithInteraction, ln_interface, n_adj, n_L1, overlap);
-  const sections = buildSectionPrompts(inputs.full, inputs);
+  const sections = buildSectionPrompts(inputs);
 
 
-  // 作る順番（表示の順番とは別）。表示は キャッチ → 説明 の順のまま
-  //   ① お名前から見えること・お誕生日から見えること・光と影（互いに独立なので同時に作る。ver3.1）
-  //   ② 現象サマリー（お名前・お誕生日を踏まえる）→ ③ キャッチ（お名前・現象サマリーから）→ ④ 締め（キャッチを受ける）
-  // 数字は表示の位置（0:キャッチ 1:現象サマリー 2:お名前 3:お誕生日 4:光と影 5:締め）
-  const GENERATION_STEPS = [[2, 3, 4], [1], [0], [5]];
+  // 作る順番（表示の順番とは別）。ver3.5
+  //   ① 生まれ持った使命・使命のサイン・道具・道具のサイン（互いに独立なので同時に作る）
+  //   ② キャッチと問い（どちらも ①の「使命」と「道具」の本文だけを材料にする）
+  // 数字は表示の位置（0:キャッチ 1:生まれ持った使命 2:使命のサイン 3:道具 4:道具のサイン 5:問い）
+  const GENERATION_STEPS = [[1, 2, 3, 4], [0, 5]];
   // 先に書いた文章を、後のプロンプトへ差し込む
-  const FILL = { 2: "__NAME__", 3: "__BIRTH__", 1: "__SUMMARY__", 0: "__CATCH__" };
+  const FILL = { 1: "__MISSION__", 3: "__TOOL__" };
   const fill = (token, value) => {
     for (const s2 of sections) s2.prompt = s2.prompt.split(token).join(value);
   };
