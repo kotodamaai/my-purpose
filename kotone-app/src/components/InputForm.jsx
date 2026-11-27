@@ -84,7 +84,7 @@ export default function InputForm({ initial, onSubmit, onBack }) {
   return (
     <div className="input-screen">
       <div className="input-header">
-        <div className="logo-small">KOTONE · MY PURPOSE Ⅱ<span className="beta-badge">ver3.5</span></div>
+        <div className="logo-small">KOTONE · MY PURPOSE Ⅱ<span className="beta-badge">ver0.1</span></div>
         <h2>診断情報の入力</h2>
       </div>
 

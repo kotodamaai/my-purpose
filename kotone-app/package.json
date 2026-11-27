@@ -1,7 +1,7 @@
 {
   "name": "kotone-app",
   "private": true,
-  "version": "3.5.0",
+  "version": "0.1.0",
   "type": "module",
   "homepage": "https://kotodamaai.github.io/my-purpose",
   "scripts": {

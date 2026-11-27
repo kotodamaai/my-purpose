@@ -5,7 +5,7 @@ import { normalizeKana } from "../utils/kotodamaEngine.js";
 
 export const PROXY_URL = "https://kotone-proxy.daiya-asset-management.workers.dev";
 
-// ver3.5（MY PURPOSE Ⅱ）：誕生日＝使命の候補、名前＝道具。二つをつなぐのは最後の「問い」で本人に委ねる。
+// MY PURPOSE Ⅱ ver0.1：誕生日＝使命の候補、名前＝道具。二つをつなぐのは最後の「問い」で本人に委ねる。
 //   設計：claude/KOTONE_ver3_5_案_使命の候補構成.md
 
 // 全セクション共通の禁止
